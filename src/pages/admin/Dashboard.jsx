@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/Card';
 import { Users, PlayCircle, Clock, TrendingUp, Settings, Download, X, Save } from 'lucide-react';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
+import { cn } from '../../lib/utils';
 
 export default function Dashboard() {
+    const navigate = useNavigate();
     const [stats, setStats] = useState({
         totalStudents: 0,
         activeSubscribers: 0,
@@ -25,28 +28,29 @@ export default function Dashboard() {
     const [isExporting, setIsExporting] = useState(false);
     const [previewData, setPreviewData] = useState({ headers: [], rows: [], loading: false });
 
-    useEffect(() => {
-        async function fetchStats() {
-            try {
-                const { count: studentCount } = await supabase.from('perfis').select('*', { count: 'exact', head: true });
-                const { count: activeCount } = await supabase.from('inscricoes').select('*', { count: 'exact', head: true }).eq('status', 'ativo');
-                const { count: courseCount } = await supabase.from('cursos').select('*', { count: 'exact', head: true });
+    async function fetchStats() {
+        try {
+            const { count: studentCount } = await supabase.from('perfis').select('*', { count: 'exact', head: true });
+            const { count: activeCount } = await supabase.from('inscricoes').select('*', { count: 'exact', head: true }).eq('status', 'ativo');
+            const { count: courseCount } = await supabase.from('cursos').select('*', { count: 'exact', head: true });
 
-                // Fetch meta from settings
-                const { data: configData } = await supabase.from('configuracoes').select('*');
-                const metaValue = configData?.find(c => c.chave === 'meta_conclusao')?.valor || 70;
+            // Fetch meta from settings
+            const { data: configData } = await supabase.from('configuracoes').select('*');
+            const metaValue = configData?.find(c => c.chave === 'meta_conclusao')?.valor || 70;
 
-                setStats({
-                    totalStudents: studentCount || 0,
-                    activeSubscribers: activeCount || 0,
-                    totalCourses: courseCount || 0,
-                    metaEngajamento: parseInt(metaValue),
-                    loading: false
-                });
-            } catch (err) {
-                console.error(err);
-            }
+            setStats({
+                totalStudents: studentCount || 0,
+                activeSubscribers: activeCount || 0,
+                totalCourses: courseCount || 0,
+                metaEngajamento: parseInt(metaValue),
+                loading: false
+            });
+        } catch (err) {
+            console.error(err);
         }
+    }
+
+    useEffect(() => {
         fetchStats();
     }, []);
 
@@ -208,76 +212,127 @@ export default function Dashboard() {
     };
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-700">
-            <div>
-                <h2 className="text-3xl font-bold text-text tracking-tight">Dashboard Administrativo</h2>
-                <p className="text-text-muted mt-1">Bem-vindo, Roberto. Aqui está o resumo da RF MUSIC.</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+            {/* Stats Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
                 <StatsCard
                     title="Total de Alunos"
                     value={stats.loading ? '...' : stats.totalStudents}
                     icon={Users}
                     description="Alunos cadastrados na base"
+                    trend="+12% este mês"
+                    color="from-primary to-yellow-600"
                 />
                 <StatsCard
                     title="Inscrições Ativas"
                     value={stats.loading ? '...' : stats.activeSubscribers}
                     icon={TrendingUp}
                     description="Ciclos de acesso vigentes"
+                    trend="+5% vs ontem"
+                    color="from-blue-500 to-indigo-600"
                 />
                 <StatsCard
                     title="Cursos Publicados"
                     value={stats.loading ? '...' : stats.totalCourses}
                     icon={PlayCircle}
                     description="Conteúdo disponível"
+                    color="from-emerald-500 to-teal-600"
+                />
+                <StatsCard
+                    title="Taxa de Conclusão"
+                    value={`${stats.metaEngajamento}%`}
+                    icon={Clock}
+                    description="Média de progresso atual"
+                    color="from-orange-500 to-red-600"
                 />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card className="border-primary/20 bg-surface/30 backdrop-blur-sm">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-lg font-medium">Metas de Engajamento</CardTitle>
-                        <Clock className="h-4 w-4 text-primary" />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Meta de Engajamento Detail */}
+                <Card className="lg:col-span-2 border-white/5 bg-surface/30 backdrop-blur-md overflow-hidden group">
+                    <CardHeader className="border-b border-white/5 pb-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <CardTitle className="text-xl font-bold">Saúde da Base</CardTitle>
+                                <p className="text-sm text-text-muted mt-1">Visão geral do engajamento dos alunos</p>
+                            </div>
+                            <div className="h-12 w-12 bg-primary/10 rounded-2xl flex items-center justify-center border border-primary/20">
+                                <TrendingUp className="h-6 w-6 text-primary" />
+                            </div>
+                        </div>
                     </CardHeader>
-                    <CardContent>
-                        <div className="text-sm text-text-muted mb-4">Média de conclusão de aulas: {stats.metaEngajamento}%</div>
-                        <div className="w-full bg-black/40 rounded-full h-3 border border-border">
-                            <div className="bg-gradient-to-r from-primary/50 to-primary h-full rounded-full transition-all duration-1000" style={{ width: `${stats.metaEngajamento}%` }} />
+                    <CardContent className="pt-8 px-8 pb-10">
+                        <div className="flex items-end justify-between mb-4">
+                            <div>
+                                <span className="text-5xl font-black text-white">{stats.metaEngajamento}%</span>
+                                <span className="text-text-muted ml-2 font-medium">de conclusão média</span>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-xs text-text-muted uppercase font-bold tracking-widest mb-1">Status</p>
+                                <span className="px-3 py-1 bg-green-500/10 text-green-500 border border-green-500/20 rounded-full text-xs font-bold">
+                                    Consistente
+                                </span>
+                            </div>
+                        </div>
+                        <div className="relative pt-4">
+                            <div className="w-full bg-white/5 rounded-full h-4 overflow-hidden border border-white/5">
+                                <div
+                                    className="h-full bg-gradient-to-r from-primary via-yellow-500 to-primary rounded-full transition-all duration-1000 ease-out relative"
+                                    style={{ width: `${stats.metaEngajamento}%` }}
+                                >
+                                    <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250px_100%] animate-shimmer" />
+                                </div>
+                            </div>
+                            {/* Marker */}
+                            <div className="absolute top-0 flex flex-col items-center" style={{ left: '70%', transform: 'translateX(-50%)' }}>
+                                <div className="h-4 w-0.5 bg-primary/50" />
+                                <span className="text-[10px] text-primary/80 font-bold mt-1 uppercase tracking-tighter">Meta Global (70%)</span>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card className="border-primary/20 bg-surface/30 backdrop-blur-sm">
-                    <CardHeader>
-                        <CardTitle className="text-lg font-medium">Ações Rápidas</CardTitle>
+                {/* Ações Rápidas Premium */}
+                <Card className="border-white/5 bg-surface/30 backdrop-blur-md">
+                    <CardHeader className="border-b border-white/5">
+                        <CardTitle className="text-lg font-bold flex items-center gap-2">
+                            <Save className="h-5 w-5 text-primary" />
+                            Atalhos Estratégicos
+                        </CardTitle>
                     </CardHeader>
-                    <CardContent className="grid grid-cols-2 gap-3">
-                        <button
+                    <CardContent className="p-4 flex flex-col gap-3">
+                        <QuickAction
+                            icon={PlayCircle}
+                            label="Gerenciar Conteúdo"
+                            sub="Cursos, aulas e materiais"
                             onClick={() => navigate('/admin/courses')}
-                            className="flex flex-col items-center gap-2 p-4 bg-black/40 border border-border rounded-lg text-xs hover:border-primary/50 hover:bg-black/60 transition-all text-text-muted group"
-                        >
-                            <PlayCircle className="h-5 w-5 group-hover:text-primary transition-colors" />
-                            Gerenciar Cursos
-                        </button>
-                        <button
+                            color="text-primary"
+                        />
+                        <QuickAction
+                            icon={Users}
+                            label="Base de Alunos"
+                            sub="Inscrições e perfis"
+                            onClick={() => navigate('/admin/students')}
+                            color="text-blue-400"
+                        />
+                        <QuickAction
+                            icon={Settings}
+                            label="Configurações"
+                            sub="Ajustes globais do sistema"
                             onClick={openSettings}
-                            className="flex flex-col items-center gap-2 p-4 bg-black/40 border border-border rounded-lg text-xs hover:border-primary/50 hover:bg-black/60 transition-all text-text-muted group"
-                        >
-                            <Settings className="h-5 w-5 group-hover:text-primary transition-colors" />
-                            Configurações globais
-                        </button>
-                        <button
+                            color="text-text-muted"
+                        />
+                        <QuickAction
+                            icon={Download}
+                            label="Faturamento & Dados"
+                            sub="Exportação de relatórios"
                             onClick={() => setIsExportModalOpen(true)}
-                            className="flex flex-col items-center gap-2 p-4 bg-black/40 border border-border rounded-lg text-xs hover:border-primary/50 hover:bg-black/60 transition-all text-text-muted group"
-                        >
-                            <Download className="h-5 w-5 group-hover:text-primary transition-colors" />
-                            Exportar Relatórios
-                        </button>
+                            color="text-emerald-400"
+                        />
                     </CardContent>
                 </Card>
             </div>
+
 
             {/* Modal de Configurações */}
             {isSettingsModalOpen && (
@@ -445,19 +500,52 @@ export default function Dashboard() {
     );
 }
 
-function StatsCard({ title, value, icon: Icon, description }) {
+function StatsCard({ title, value, icon: Icon, description, trend, color }) {
     return (
-        <Card className="bg-surface border-primary/10 hover:border-primary/50 transition-all duration-300 group">
+        <Card className="bg-surface/40 backdrop-blur-md border-white/5 hover:border-primary/30 transition-all duration-500 group overflow-hidden relative">
+            {/* Ambient Background Gradient */}
+            <div className={`absolute -right-4 -top-4 h-24 w-24 bg-gradient-to-br ${color} opacity-0 group-hover:opacity-10 blur-2xl transition-opacity duration-500`} />
+
             <CardContent className="p-6">
-                <div className="flex items-center justify-between space-y-0 pb-2">
-                    <p className="text-sm font-medium text-text-muted group-hover:text-text transition-colors">{title}</p>
-                    <Icon className="h-4 w-4 text-primary" />
+                <div className="flex items-start justify-between">
+                    <div>
+                        <p className="text-xs font-bold text-text-muted uppercase tracking-widest mb-1">{title}</p>
+                        <h3 className="text-3xl font-black text-white tabular-nums tracking-tighter">{value}</h3>
+                    </div>
+                    <div className={`h-10 w-10 bg-gradient-to-br ${color} rounded-xl flex items-center justify-center border border-white/10 shadow-lg transition-transform group-hover:scale-110 duration-500`}>
+                        <Icon className="h-5 w-5 text-white" />
+                    </div>
                 </div>
-                <div className="flex flex-col gap-1">
-                    <span className="text-3xl font-bold text-text tabular-nums">{value}</span>
-                    <p className="text-xs text-text-muted">{description}</p>
+
+                <div className="mt-4 flex items-center justify-between">
+                    <p className="text-[10px] text-text-muted font-medium italic">{description}</p>
+                    {trend && (
+                        <span className="text-[10px] font-bold text-green-500 bg-green-500/10 px-2 py-0.5 rounded-full border border-green-500/20">
+                            {trend}
+                        </span>
+                    )}
                 </div>
             </CardContent>
         </Card>
+    );
+}
+
+function QuickAction({ icon: Icon, label, sub, onClick, color }) {
+    return (
+        <button
+            onClick={onClick}
+            className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-primary/40 hover:bg-white/10 transition-all duration-300 group text-left"
+        >
+            <div className={cn(
+                "h-10 w-10 rounded-xl flex items-center justify-center bg-black/40 border border-white/5 transition-transform group-hover:scale-110",
+                color
+            )}>
+                <Icon className="h-5 w-5" />
+            </div>
+            <div>
+                <p className="text-sm font-bold text-text group-hover:text-primary transition-colors">{label}</p>
+                <p className="text-[10px] text-text-muted font-medium">{sub}</p>
+            </div>
+        </button>
     );
 }

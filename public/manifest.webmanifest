@@ -1,0 +1,16 @@
+{
+    "short_name": "RF Cursos",
+    "name": "RF Cursos - Plataforma de Música",
+    "icons": [
+        {
+            "src": "logo-rf.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ],
+    "start_url": ".",
+    "display": "standalone",
+    "theme_color": "#09090b",
+    "background_color": "#09090b"
+}

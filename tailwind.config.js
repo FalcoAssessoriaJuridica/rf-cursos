@@ -19,7 +19,7 @@ export default {
         sans: ['Inter', 'sans-serif'],
       },
       backgroundImage: {
-        'gradient-gold': 'linear-gradient(135deg, #D4AF37 0%, #FCT658 100%)',
+        'gradient-gold': 'linear-gradient(135deg, #D4AF37 0%, #FDE68A 100%)',
       },
     },
   },
