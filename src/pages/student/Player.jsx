@@ -79,19 +79,15 @@ export default function Player() {
             });
 
             if (isAudio) {
-                // Use the proxy for audio streaming
                 return `${funcUrl}?${params.toString()}`;
             }
-            // View/Download for PDF - standard drive preview is usually fine for viewing
             return `https://drive.google.com/file/d/${idMatch[1]}/view`;
         }
         return url;
     };
 
     const handleDownload = async (url, filename, type = 'pdf') => {
-        // Guard against double-clicks
         if (isDownloading[url]) return;
-        // Use a unique ID for the loading state to avoid mismatches
         const loadingKey = url;
         try {
             setIsDownloading(prev => ({ ...prev, [loadingKey]: true }));
@@ -110,7 +106,6 @@ export default function Player() {
 
             const proxyUrl = `https://bghvzdfikfhceekoxtxg.supabase.co/functions/v1/drive-proxy?id=${idMatch[1]}&filename=${encodeURIComponent(finalFilename)}&download=true&t=${Date.now()}`;
 
-            // TENTATIVA 1: showSaveFilePicker (Garante janela de Salvar Como)
             if (window.showSaveFilePicker) {
                 try {
                     const handle = await window.showSaveFilePicker({
@@ -120,27 +115,19 @@ export default function Player() {
                             accept: { [type === 'audio' ? 'audio/mpeg' : 'application/pdf']: [extension] },
                         }],
                     });
-
-                    // Só faz o fetch DEPOIS que o usuário escolheu o local
                     const response = await fetch(proxyUrl);
                     if (!response.ok) throw new Error("Erro ao baixar do servidor");
-
                     const writable = await handle.createWritable();
-                    await response.body.pipeTo(writable); // Stream direto para o arquivo
+                    await response.body.pipeTo(writable);
                     return;
                 } catch (err) {
-                    if (err.name === 'AbortError') {
-                        console.log("Usuário cancelou o salvamento.");
-                        return;
-                    }
+                    if (err.name === 'AbortError') return;
                     console.warn("showSaveFilePicker falhou, tentando fallback...", err);
                 }
             }
 
-            // FALLBACK: Método tradicional (Respeita configuração do navegador)
             const response = await fetch(proxyUrl);
             if (!response.ok) throw new Error("Erro no download");
-
             const blob = await response.blob();
             const blobUrl = window.URL.createObjectURL(new Blob([blob], { type: 'application/octet-stream' }));
             const link = document.createElement('a');
@@ -153,7 +140,6 @@ export default function Player() {
 
         } catch (err) {
             console.error("Erro no download:", err);
-            // Mostrar erro apenas se não for cancelamento do usuário
             if (err.name !== 'AbortError') {
                 alert("Não foi possível baixar o arquivo. Tente novamente.");
             }
@@ -169,12 +155,8 @@ export default function Player() {
     async function fetchData() {
         try {
             setLoading(true);
-
-            // 1. Check Access Expiration (Requirement 4)
             const userId = localStorage.getItem('rf_user_id');
 
-            // 1. Check Access Expiration (Requirement 4)
-            // Filter by BOTH courseId and the current userId
             const { data: inscription } = await supabase
                 .from('inscricoes')
                 .select('*')
@@ -190,13 +172,11 @@ export default function Player() {
                     return;
                 }
             } else {
-                // If no inscription found, block access
                 setIsBlocked(true);
                 setLoading(false);
                 return;
             }
 
-            // 2. Fetch modules with lessons AND course details
             const { data: modulesData } = await supabase
                 .from('modulos')
                 .select('*, aulas(*), cursos(titulo)')
@@ -205,7 +185,6 @@ export default function Player() {
 
             setModules(modulesData || []);
 
-            // 3. Current lesson
             let currentLessonId = lessonId;
             if (lessonId === 'latest') {
                 if (modulesData?.[0]?.aulas?.[0]) currentLessonId = modulesData[0].aulas[0].id;
@@ -217,8 +196,7 @@ export default function Player() {
                     .select('*')
                     .eq('id', currentLessonId)
                     .single();
-                const userId = localStorage.getItem('rf_user_id');
-                // Fetch all progress for this student across all lessons
+
                 const { data: allProg } = await supabase
                     .from('progresso')
                     .select('aula_id, concluida, porcentagem_concluida, segundos_assistidos')
@@ -235,13 +213,11 @@ export default function Player() {
                 });
                 setLessonProgressMap(progMap);
 
-                // Calculate Course Progress for this specific course
                 const allAulasInCourse = modulesData?.flatMap(m => m.aulas) || [];
                 const totalAulasCount = allAulasInCourse.length;
                 const completedInCourse = allAulasInCourse.filter(a => completedSet.has(a.id)).length;
                 setCourseProgressPercent(totalAulasCount > 0 ? Math.round((completedInCourse / totalAulasCount) * 100) : 0);
 
-                // Check specific current lesson progress
                 const currentProg = allProg?.find(p => p.aula_id === currentLessonId);
 
                 if (currentProg) {
@@ -260,7 +236,6 @@ export default function Player() {
                 }
                 setLesson(lessonData);
 
-                // Auto-expand current module
                 if (lessonData) {
                     setExpandedModules(prev => new Set([...prev, lessonData.modulo_id]));
                 }
@@ -273,15 +248,12 @@ export default function Player() {
         }
     }
 
-    // Effect to track video progress (Real Implementation)
-    // Effect to track video progress (Real Implementation)
     useEffect(() => {
         if (lesson && !isBlocked && !isCompleted) {
             const saveProgress = async () => {
                 try {
                     const userId = localStorage.getItem('rf_user_id');
                     if (!userId) return;
-
                     await supabase.from('progresso').upsert({
                         perfil_id: userId,
                         aula_id: lesson.id,
@@ -294,21 +266,16 @@ export default function Player() {
                 }
             };
 
-            const interval = setInterval(saveProgress, 30000); // Auto-save
+            const interval = setInterval(saveProgress, 30000);
 
-            // Simulate progress increase while watching (useful for iframes)
             const progressSim = setInterval(() => {
                 setProgress(prev => {
                     if (prev.watched < 95) {
-                        return {
-                            ...prev,
-                            watched: prev.watched + 1,
-                            seconds: prev.seconds + 60 // Estimate 60s per minute
-                        };
+                        return { ...prev, watched: prev.watched + 1, seconds: prev.seconds + 60 };
                     }
                     return prev;
                 });
-            }, 60000); // +1% per minute
+            }, 60000);
 
             return () => {
                 clearInterval(interval);
@@ -322,7 +289,6 @@ export default function Player() {
             const newState = !isCompleted;
             setIsCompleted(newState);
 
-            // Update local set for sidebar UI
             setCompletedLessons(prev => {
                 const next = new Set(prev);
                 if (newState) next.add(lesson.id);
@@ -330,13 +296,11 @@ export default function Player() {
                 return next;
             });
 
-            // Update local map for sidebar percentages
             setLessonProgressMap(prev => ({
                 ...prev,
                 [lesson.id]: newState ? 100 : progress.watched
             }));
 
-            // Re-calculate course progress
             const allAulasInCourse = modules.flatMap(m => m.aulas);
             const concludedCount = allAulasInCourse.filter(a =>
                 a.id === lesson.id ? newState : completedLessons.has(a.id)
@@ -368,17 +332,24 @@ export default function Player() {
         }
     };
 
-    if (loading) return <div className="flex h-screen items-center justify-center text-primary">Preparamos sua aula...</div>;
+    if (loading) return (
+        <div className="flex h-screen items-center justify-center">
+            <div className="flex flex-col items-center gap-4">
+                <div className="w-12 h-12 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+                <p className="text-sm text-text-muted uppercase tracking-[0.2em] animate-pulse">Preparando sua aula...</p>
+            </div>
+        </div>
+    );
 
     if (isBlocked) {
         return (
             <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] text-center space-y-6">
-                <div className="p-4 rounded-full bg-primary/10 border border-primary/20">
+                <div className="p-5 rounded-full glass-panel border border-primary/30" style={{ boxShadow: '0 0 40px rgba(212,175,55,0.2)' }}>
                     <Lock className="h-16 w-16 text-primary" />
                 </div>
                 <div className="max-w-md">
                     <h1 className="text-3xl font-bold text-primary uppercase tracking-tighter">Acesso Expirado</h1>
-                    <p className="text-text-muted mt-4">
+                    <p className="text-text-muted mt-4 leading-relaxed">
                         Seu ciclo de estudos nesta jornada chegou ao fim. <br />
                         Para renovar seu acesso e continuar evoluindo, entre em contato com nosso suporte.
                     </p>
@@ -390,21 +361,27 @@ export default function Player() {
 
     return (
         <div className="flex flex-col gap-6">
-            {/* Header com Progresso do Curso */}
-            <div className="bg-surface border border-border rounded-lg p-4 flex items-center justify-between">
+            {/* ── Header com Progresso do Curso ── */}
+            <div className="glass-panel rounded-xl p-4 flex items-center justify-between border border-white/10" style={{ boxShadow: '0 4px 30px rgba(0,0,0,0.3)' }}>
                 <div className="flex items-center gap-4">
-                    <Button variant="outline" size="icon" onClick={() => navigate('/student')}>
+                    <button
+                        onClick={() => navigate('/student')}
+                        className="h-9 w-9 flex items-center justify-center rounded-lg border border-white/10 bg-white/5 text-text-muted hover:text-primary hover:border-primary/40 transition-all"
+                    >
                         <ChevronLeft className="h-4 w-4" />
-                    </Button>
+                    </button>
                     <div>
-                        <h2 className="text-lg font-bold text-primary uppercase tracking-tighter">
+                        <h2 className="text-sm font-black uppercase tracking-[0.15em] gold-text-gradient">
                             {modules.length > 0 ? modules[0].cursos?.titulo : 'Curso'}
                         </h2>
-                        <div className="flex items-center gap-2 mt-1">
-                            <div className="w-32 h-1.5 bg-black/40 rounded-full overflow-hidden border border-white/5">
-                                <div className="bg-primary h-full transition-all duration-1000" style={{ width: `${courseProgressPercent}%` }} />
+                        <div className="flex items-center gap-2 mt-1.5">
+                            <div className="w-28 h-1 bg-black/40 rounded-full overflow-hidden">
+                                <div
+                                    className="bg-primary h-full transition-all duration-1000"
+                                    style={{ width: `${courseProgressPercent}%`, boxShadow: '0 0 8px rgba(212,175,55,0.5)' }}
+                                />
                             </div>
-                            <span className="text-[10px] text-text-muted font-bold">{courseProgressPercent}% CONCLUÍDO</span>
+                            <span className="text-[10px] text-primary/70 font-bold tracking-widest">{courseProgressPercent}% CONCLUÍDO</span>
                         </div>
                     </div>
                 </div>
@@ -415,29 +392,32 @@ export default function Player() {
             </div>
 
             <div className="flex flex-col lg:flex-row gap-6">
+                {/* ── Main Content ── */}
                 <div className="flex-1 flex flex-col gap-4">
                     {lesson ? (
                         <>
-                            <div className="aspect-video w-full bg-black rounded-lg overflow-hidden border border-border relative">
-                                {/* Intelligent Player with Resume (Requirement 4) */}
+                            {/* Vídeo Player */}
+                            <div className="aspect-video w-full bg-black rounded-xl overflow-hidden relative border border-white/10"
+                                style={{ boxShadow: '0 8px 40px rgba(0,0,0,0.6)' }}>
                                 {getEmbedUrl(lesson, initialStartTime) ? (
                                     <iframe
-                                        key={lesson.id} // Only reload when the lesson actually changes
+                                        key={lesson.id}
                                         src={getEmbedUrl(lesson, initialStartTime)}
                                         className="w-full h-full border-none"
                                         allow="autoplay; fullscreen"
                                         allowFullScreen
                                     />
                                 ) : (
-                                    <div className="flex h-full items-center justify-center bg-surface/50">
-                                        <div className="text-center space-y-3 p-6">
-                                            <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+                                    <div className="flex h-full items-center justify-center glass-panel rounded-xl">
+                                        <div className="text-center space-y-4 p-6">
+                                            <div className="mx-auto w-16 h-16 rounded-full border border-primary/30 bg-primary/10 flex items-center justify-center"
+                                                style={{ boxShadow: '0 0 20px rgba(212,175,55,0.2)' }}>
                                                 <Library className="h-8 w-8 text-primary/60" />
                                             </div>
                                             <div>
                                                 <h3 className="font-bold text-text text-lg">Conteúdo de Estudo</h3>
-                                                <p className="text-sm text-text-muted max-w-xs mx-auto">
-                                                    Esta aula não possui vídeo. Explore os materiais em PDF e Áudio disponíveis abaixo para seu aprendizado.
+                                                <p className="text-sm text-text-muted max-w-xs mx-auto mt-1">
+                                                    Esta aula não possui vídeo. Explore os materiais em PDF e Áudio disponíveis abaixo.
                                                 </p>
                                             </div>
                                         </div>
@@ -445,40 +425,53 @@ export default function Player() {
                                 )}
                             </div>
 
-                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                                <div>
-                                    <h1 className="text-2xl font-bold text-primary">{lesson.titulo}</h1>
-                                    <p className="text-text-muted text-sm">Módulo: {modules.find(m => m.id === lesson.modulo_id)?.titulo}</p>
+                            {/* Lesson Info & Actions */}
+                            <div className="glass-panel rounded-xl p-5 border border-white/10">
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                    <div>
+                                        <h1 className="text-xl font-bold gold-text-gradient">{lesson.titulo}</h1>
+                                        <p className="text-text-muted text-sm mt-1">
+                                            {modules.find(m => m.id === lesson.modulo_id)?.titulo}
+                                        </p>
+                                    </div>
+                                    <div className="flex gap-2 shrink-0">
+                                        <button
+                                            onClick={toggleCompletion}
+                                            className={cn(
+                                                "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all border",
+                                                isCompleted
+                                                    ? "bg-green-500/10 text-green-400 border-green-500/30 hover:bg-green-500/20"
+                                                    : "bg-primary/10 text-primary border-primary/30 hover:bg-primary/20"
+                                            )}
+                                        >
+                                            <CheckCircle className={cn("h-4 w-4", isCompleted && "fill-green-500 text-green-500")} />
+                                            {isCompleted ? 'Concluída' : 'Concluir Aula'}
+                                        </button>
+                                        <Button variant="outline" size="sm" onClick={() => handleNextPrev('prev')}>Anterior</Button>
+                                        <Button size="sm" onClick={() => handleNextPrev('next')}>Próxima</Button>
+                                    </div>
                                 </div>
-                                <div className="flex gap-2">
-                                    <Button
-                                        variant={isCompleted ? "secondary" : "outline"}
-                                        size="sm"
-                                        onClick={toggleCompletion}
-                                        className={isCompleted ? "bg-green-500/10 text-green-500 border-green-500/20 hover:bg-green-500/20" : ""}
-                                    >
-                                        <CheckCircle className={cn("h-4 w-4 mr-2", isCompleted && "fill-green-500")} />
-                                        {isCompleted ? "Concluída" : "Concluir Aula"}
-                                    </Button>
-                                    <Button variant="outline" size="sm" onClick={() => handleNextPrev('prev')}>Anterior</Button>
-                                    <Button size="sm" onClick={() => handleNextPrev('next')}>Próxima Aula</Button>
+
+                                {/* Progress Bar */}
+                                <div className="mt-4 pt-4 border-t border-white/5">
+                                    <div className="flex justify-between text-[11px] text-text-muted mb-1.5">
+                                        <span className="uppercase tracking-wider font-bold">Progresso na Aula</span>
+                                        <span className="text-primary font-bold">{progress.watched}%</span>
+                                    </div>
+                                    <div className="w-full bg-black/40 rounded-full h-1.5 overflow-hidden">
+                                        <div
+                                            className="bg-primary h-full transition-all duration-1000 rounded-full"
+                                            style={{ width: `${progress.watched}%`, boxShadow: '0 0 6px rgba(212,175,55,0.6)' }}
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="mt-2">
-                                <div className="flex justify-between text-xs text-text-muted mb-1">
-                                    <span>Progresso na Aula</span>
-                                    <span>{progress.watched}%</span>
-                                </div>
-                                <div className="w-full bg-surface border border-border rounded-full h-2 overflow-hidden">
-                                    <div className="bg-primary h-full transition-all duration-1000" style={{ width: `${progress.watched}%` }} />
-                                </div>
-                            </div>
-
+                            {/* Materiais */}
                             {((lesson.materiais_pdf && lesson.materiais_pdf.length > 0) || (lesson.materiais_audio && lesson.materiais_audio.length > 0)) && (
-                                <div className="mt-6 p-4 bg-surface border border-border rounded-lg space-y-4">
-                                    <h3 className="text-sm font-bold text-primary uppercase tracking-widest flex items-center gap-2">
-                                        <FileText className="h-4 w-4" />
+                                <div className="glass-panel rounded-xl p-5 border border-white/10 space-y-4">
+                                    <h3 className="text-xs font-black gold-text-gradient uppercase tracking-[0.2em] flex items-center gap-2">
+                                        <FileText className="h-4 w-4 text-primary" />
                                         Materiais da Aula
                                     </h3>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -487,29 +480,31 @@ export default function Player() {
                                                 key={`pdf-${idx}`}
                                                 onClick={() => handleDownload(pdf.url, pdf.nome, 'pdf')}
                                                 disabled={isDownloading[pdf.url]}
-                                                className="flex items-center gap-3 p-3 bg-black/20 rounded-md border border-border hover:border-primary/50 transition-all group w-full text-left"
+                                                className="flex items-center gap-3 p-3 bg-black/20 rounded-lg border border-white/5 hover:border-primary/40 hover:bg-primary/5 transition-all group w-full text-left"
                                             >
-                                                <div className="h-10 w-10 bg-red-500/10 rounded flex items-center justify-center">
+                                                <div className="h-10 w-10 bg-red-500/10 rounded-lg flex items-center justify-center shrink-0">
                                                     {isDownloading[pdf.url] ? (
                                                         <Loader2 className="h-5 w-5 text-red-500 animate-spin" />
                                                     ) : (
-                                                        <FileText className="h-5 w-5 text-red-500" />
+                                                        <FileText className="h-5 w-5 text-red-400" />
                                                     )}
                                                 </div>
-                                                <div className="flex-1">
+                                                <div className="flex-1 min-w-0">
                                                     <p className="text-xs font-bold text-text truncate">{pdf.nome || 'Material PDF'}</p>
                                                     <p className="text-[10px] text-text-muted uppercase tracking-tighter">
                                                         {isDownloading[pdf.url] ? 'Preparando arquivo...' : 'Baixar Partitura (PDF)'}
                                                     </p>
                                                 </div>
-                                                {!isDownloading[pdf.url] && <Download className="h-4 w-4 text-text-muted group-hover:text-primary transition-colors" />}
+                                                {!isDownloading[pdf.url] && (
+                                                    <Download className="h-4 w-4 text-text-muted group-hover:text-primary transition-colors shrink-0" />
+                                                )}
                                             </button>
                                         ))}
 
                                         {lesson.materiais_audio?.map((audio, idx) => (
-                                            <div key={`audio-${idx}`} className="flex flex-col gap-2 p-3 bg-black/20 rounded-md border border-border">
+                                            <div key={`audio-${idx}`} className="flex flex-col gap-2 p-3 bg-black/20 rounded-lg border border-white/5">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="h-10 w-10 bg-primary/10 rounded flex items-center justify-center">
+                                                    <div className="h-10 w-10 bg-primary/10 rounded-lg flex items-center justify-center shrink-0">
                                                         {isDownloading[audio.url] ? (
                                                             <Loader2 className="h-5 w-5 text-primary animate-spin" />
                                                         ) : (
@@ -525,7 +520,7 @@ export default function Player() {
                                                     <button
                                                         onClick={() => handleDownload(audio.url, audio.nome, 'audio')}
                                                         disabled={isDownloading[audio.url]}
-                                                        className="p-2 hover:bg-white/10 rounded-full transition-colors group"
+                                                        className="p-2 hover:bg-white/10 rounded-full transition-colors group shrink-0"
                                                         title="Baixar Áudio"
                                                     >
                                                         <Download className="h-4 w-4 text-text-muted group-hover:text-primary" />
@@ -547,31 +542,40 @@ export default function Player() {
                             )}
                         </>
                     ) : (
-                        <div className="flex items-center justify-center h-full text-text-muted">Selecione uma aula lateral para começar.</div>
+                        <div className="glass-panel rounded-xl flex items-center justify-center h-64 text-text-muted border border-white/10">
+                            Selecione uma aula na lateral para começar.
+                        </div>
                     )}
                 </div>
 
-                <div className="w-full lg:w-96 bg-surface border border-border rounded-lg overflow-hidden flex flex-col shadow-2xl">
-                    <div className="p-5 border-b border-border bg-black/40 space-y-3">
-                        <h3 className="font-bold text-text uppercase tracking-widest text-xs flex items-center justify-between">
+                {/* ── Sidebar: Conteúdo do Curso ── */}
+                <div className="w-full lg:w-96 glass-panel rounded-xl overflow-hidden flex flex-col border border-white/10"
+                    style={{ boxShadow: '0 8px 40px rgba(0,0,0,0.4)' }}>
+                    {/* Sidebar Header */}
+                    <div className="p-5 border-b border-white/10 bg-black/30 space-y-3">
+                        <h3 className="font-black text-xs uppercase tracking-[0.2em] flex items-center justify-between">
                             <span className="flex items-center gap-2">
-                                <Play className="h-4 w-4 text-primary" fill="currentColor" />
-                                Conteúdo do Curso
+                                <Play className="h-3.5 w-3.5 text-primary" fill="currentColor" />
+                                <span className="gold-text-gradient">Conteúdo do Curso</span>
                             </span>
-                            <span className="text-primary">{courseProgressPercent}%</span>
+                            <span className="text-primary font-black">{courseProgressPercent}%</span>
                         </h3>
-                        <div className="w-full bg-surface border border-border rounded-full h-1 overflow-hidden">
+                        <div className="w-full bg-black/40 rounded-full h-1 overflow-hidden">
                             <div
-                                className="bg-primary h-full transition-all duration-700"
-                                style={{ width: `${courseProgressPercent}%` }}
+                                className="bg-primary h-full transition-all duration-700 rounded-full"
+                                style={{ width: `${courseProgressPercent}%`, boxShadow: '0 0 6px rgba(212,175,55,0.5)' }}
                             />
                         </div>
                     </div>
-                    <div className="overflow-y-auto flex-1 p-2 space-y-3 custom-scrollbar">
+
+                    {/* Module List */}
+                    <div className="overflow-y-auto flex-1 p-2 space-y-2 custom-scrollbar">
                         {modules.map((module) => {
                             const isExpanded = expandedModules.has(module.id);
+                            const moduleAulas = module.aulas || [];
+                            const completedCount = moduleAulas.filter(a => completedLessons.has(a.id)).length;
                             return (
-                                <div key={module.id} className="space-y-1">
+                                <div key={module.id} className="rounded-lg overflow-hidden border border-white/5">
                                     <button
                                         onClick={() => setExpandedModules(prev => {
                                             const next = new Set(prev);
@@ -579,33 +583,40 @@ export default function Player() {
                                             else next.add(module.id);
                                             return next;
                                         })}
-                                        className="w-full px-3 py-2 text-[10px] font-black text-primary/60 uppercase tracking-[0.2em] bg-white/5 rounded flex items-center justify-between group hover:bg-white/10 transition-all"
+                                        className="w-full px-4 py-3 text-[10px] font-black uppercase tracking-[0.15em] bg-white/5 hover:bg-white/10 flex items-center justify-between group transition-all"
                                     >
-                                        <span>{module.titulo}</span>
-                                        <ChevronDown className={cn("h-3 w-3 transition-transform duration-300", !isExpanded && "-rotate-90")} />
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <span className="text-primary/70 group-hover:text-primary transition-colors truncate">{module.titulo}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0 ml-2">
+                                            <span className="text-text-muted">{completedCount}/{moduleAulas.length}</span>
+                                            <ChevronDown className={cn("h-3 w-3 text-primary/50 transition-transform duration-300", !isExpanded && "-rotate-90")} />
+                                        </div>
                                     </button>
 
                                     <div className={cn(
                                         "grid transition-all duration-300 ease-in-out",
                                         isExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0 overflow-hidden"
                                     )}>
-                                        <div className="min-h-0 space-y-0.5">
-                                            {module.aulas?.sort((a, b) => a.ordem - b.ordem).map((aula) => (
+                                        <div className="min-h-0 space-y-0.5 p-1">
+                                            {moduleAulas.sort((a, b) => a.ordem - b.ordem).map((aula) => (
                                                 <button
                                                     key={aula.id}
                                                     onClick={() => navigate(`/student/course/${courseId}/lesson/${aula.id}`)}
                                                     className={cn(
-                                                        "w-full flex items-center gap-3 px-4 py-4 text-sm text-left rounded-md transition-all group",
+                                                        "w-full flex items-center gap-3 px-3 py-3 text-sm text-left rounded-lg transition-all group",
                                                         lesson?.id === aula.id
-                                                            ? "bg-primary/20 text-primary border-l-4 border-primary"
+                                                            ? "bg-primary/15 text-primary border-l-2 border-primary font-bold"
                                                             : "text-text-muted hover:bg-white/5 hover:text-text"
                                                     )}
                                                 >
                                                     <div className={cn(
-                                                        "h-5 w-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors",
+                                                        "h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all",
                                                         completedLessons.has(aula.id)
                                                             ? "border-green-500 bg-green-500/20"
-                                                            : (lesson?.id === aula.id ? "border-primary" : "border-border")
+                                                            : lesson?.id === aula.id
+                                                                ? "border-primary bg-primary/10"
+                                                                : "border-white/20"
                                                     )}>
                                                         {completedLessons.has(aula.id) ? (
                                                             <CheckCircle className="h-3 w-3 text-green-500 fill-green-500" />
@@ -614,9 +625,9 @@ export default function Player() {
                                                         )}
                                                     </div>
                                                     <div className="flex flex-col flex-1 min-w-0">
-                                                        <span className="line-clamp-1 group-hover:text-text transition-colors">{aula.titulo}</span>
+                                                        <span className="line-clamp-2 text-xs group-hover:text-text transition-colors leading-relaxed">{aula.titulo}</span>
                                                         {lessonProgressMap[aula.id] > 0 && !completedLessons.has(aula.id) && (
-                                                            <span className="text-[10px] text-primary/70">{lessonProgressMap[aula.id]}% assistido</span>
+                                                            <span className="text-[10px] text-primary/60 mt-0.5">{lessonProgressMap[aula.id]}% assistido</span>
                                                         )}
                                                     </div>
                                                 </button>
