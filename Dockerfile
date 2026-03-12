@@ -30,5 +30,8 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # Configuração do nginx para SPA (React Router) na porta 3000
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
+# Remove a configuração padrão se o nginx criar um backup ou conflito
+RUN rm -f /etc/nginx/conf.d/default.conf.bak
+
 EXPOSE 3000
 CMD ["nginx", "-g", "daemon off;"]
