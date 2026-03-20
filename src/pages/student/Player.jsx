@@ -583,13 +583,13 @@ export default function Player() {
                                             else next.add(module.id);
                                             return next;
                                         })}
-                                        className="w-full px-4 py-3 text-[10px] font-black uppercase tracking-[0.15em] bg-white/5 hover:bg-white/10 flex items-center justify-between group transition-all"
+                                        className="w-full px-4 py-3.5 text-xs font-black uppercase tracking-[0.12em] bg-white/5 hover:bg-white/10 flex items-center justify-between group transition-all"
                                     >
                                         <div className="flex items-center gap-2 min-w-0">
-                                            <span className="text-primary/70 group-hover:text-primary transition-colors truncate">{module.titulo}</span>
+                                            <span className="text-primary/80 group-hover:text-primary transition-colors truncate">{module.titulo}</span>
                                         </div>
                                         <div className="flex items-center gap-2 shrink-0 ml-2">
-                                            <span className="text-text-muted">{completedCount}/{moduleAulas.length}</span>
+                                            <span className="text-sm font-bold text-primary/80 group-hover:text-primary transition-colors">{completedCount}/{moduleAulas.length}</span>
                                             <ChevronDown className={cn("h-3 w-3 text-primary/50 transition-transform duration-300", !isExpanded && "-rotate-90")} />
                                         </div>
                                     </button>
