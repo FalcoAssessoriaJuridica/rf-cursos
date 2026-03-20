@@ -218,20 +218,28 @@ export default function Students() {
     };
 
     const toggleStatus = async (student) => {
-        const activeInscr = student.inscricoes?.[0];
-        if (!activeInscr) return;
+        const inscricoes = student.inscricoes || [];
+
+        if (inscricoes.length === 0) {
+            alert('Este aluno não possui inscrições ativas para bloquear/desbloquear.');
+            return;
+        }
 
         try {
-            const newStatus = activeInscr.status === 'bloqueado' ? 'ativo' : 'bloqueado';
+            // Verifica o status atual baseado na primeira inscrição
+            const currentStatus = inscricoes[0]?.status;
+            const newStatus = currentStatus === 'bloqueado' ? 'ativo' : 'bloqueado';
+
+            // Atualiza TODAS as inscrições do aluno de uma vez
             const { error } = await supabase
                 .from('inscricoes')
                 .update({ status: newStatus })
-                .eq('id', activeInscr.id);
+                .eq('perfil_id', student.id);
 
             if (error) throw error;
             fetchStudents();
         } catch (err) {
-            alert("Erro ao alterar status: " + err.message);
+            alert('Erro ao alterar status: ' + err.message);
         }
     };
 

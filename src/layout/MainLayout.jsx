@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LogOut, LayoutDashboard, Users, BookOpen, Music } from 'lucide-react';
+import { LogOut, LayoutDashboard, Users, BookOpen } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { Button } from '../components/Button';
@@ -11,29 +11,38 @@ export default function MainLayout({ isAdmin = false }) {
     const [userName, setUserName] = useState('');
 
     useEffect(() => {
-        async function fetchUserName() {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
+        // Sistema usa autenticação customizada via localStorage
+        const role = localStorage.getItem('rf_role');
 
-            // Busca o nome na tabela de perfis usando o email do usuário autenticado
-            const { data: perfil } = await supabase
-                .from('perfis')
-                .select('nome_completo')
-                .eq('email', user.email)
-                .single();
-
-            if (perfil?.nome_completo) {
-                // Pega apenas o primeiro nome
-                setUserName(perfil.nome_completo.split(' ')[0]);
-            } else if (user.email) {
-                setUserName(user.email.split('@')[0]);
+        if (role === 'admin') {
+            // Admin: busca o nome do perfil pelo email do admin
+            async function fetchAdminName() {
+                const { data } = await supabase
+                    .from('perfis')
+                    .select('nome_completo')
+                    .eq('email', 'falco.adv@gmail.com')
+                    .single();
+                if (data?.nome_completo) {
+                    setUserName(data.nome_completo.split(' ')[0]);
+                } else {
+                    setUserName('Admin');
+                }
+            }
+            fetchAdminName();
+        } else {
+            // Aluno: nome já está salvo no localStorage pelo Login.jsx
+            const storedName = localStorage.getItem('rf_user_name');
+            if (storedName) {
+                setUserName(storedName.split(' ')[0]);
             }
         }
-        fetchUserName();
     }, []);
 
     const handleLogout = async () => {
-        await supabase.auth.signOut();
+        localStorage.removeItem('rf_role');
+        localStorage.removeItem('rf_user_id');
+        localStorage.removeItem('rf_user_email');
+        localStorage.removeItem('rf_user_name');
         navigate('/login');
     };
 
@@ -105,7 +114,7 @@ export default function MainLayout({ isAdmin = false }) {
                 <header className="h-16 lg:h-20 border-b border-white/5 flex items-center justify-between px-6 lg:px-8 bg-surface/30 backdrop-blur-md">
                     <div>
                         <h2 className="text-lg lg:text-xl font-bold text-text truncate">
-                            Olá, <span className="text-luxury-gold">{userName || '...'}</span>
+                            Olá, <span className="text-luxury-gold">{userName || 'Carregando...'}</span>
                         </h2>
                         <p className="text-xs text-text-muted">Bem-vindo de volta!</p>
                     </div>
