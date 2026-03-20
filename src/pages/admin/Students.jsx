@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/Card';
-import { Plus, Search, MoreVertical, Shield, Ban, Calendar, UserPlus, Pencil, X, Trash2 } from 'lucide-react';
+import { Plus, Search, MoreVertical, ShieldCheck, ShieldOff, Calendar, UserPlus, Pencil, X, Trash2 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 export default function Students() {
@@ -360,8 +360,16 @@ export default function Students() {
                                                 <Button variant="ghost" size="icon" onClick={() => openModal(student)}>
                                                     <Pencil className="h-4 w-4 text-primary" />
                                                 </Button>
-                                                <Button variant="ghost" size="icon" onClick={() => toggleStatus(student)}>
-                                                    <Ban className={cn("h-4 w-4", status === 'Ativo' ? "text-red-500" : "text-green-500")} />
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => toggleStatus(student)}
+                                                    title={status === 'Ativo' ? 'Bloquear aluno' : 'Desbloquear aluno'}
+                                                >
+                                                    {status === 'Ativo'
+                                                        ? <ShieldOff className="h-4 w-4 text-red-500" />
+                                                        : <ShieldCheck className="h-4 w-4 text-green-500" />
+                                                    }
                                                 </Button>
                                                 <Button variant="ghost" size="icon" onClick={() => handleDelete(student)}>
                                                     <Trash2 className="h-4 w-4 text-red-500" />

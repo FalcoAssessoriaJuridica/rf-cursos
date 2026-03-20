@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { LogOut, LayoutDashboard, Users, BookOpen, Music } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -8,6 +8,29 @@ import { Button } from '../components/Button';
 export default function MainLayout({ isAdmin = false }) {
     const location = useLocation();
     const navigate = useNavigate();
+    const [userName, setUserName] = useState('');
+
+    useEffect(() => {
+        async function fetchUserName() {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            // Busca o nome na tabela de perfis usando o email do usuário autenticado
+            const { data: perfil } = await supabase
+                .from('perfis')
+                .select('nome_completo')
+                .eq('email', user.email)
+                .single();
+
+            if (perfil?.nome_completo) {
+                // Pega apenas o primeiro nome
+                setUserName(perfil.nome_completo.split(' ')[0]);
+            } else if (user.email) {
+                setUserName(user.email.split('@')[0]);
+            }
+        }
+        fetchUserName();
+    }, []);
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -82,7 +105,7 @@ export default function MainLayout({ isAdmin = false }) {
                 <header className="h-16 lg:h-20 border-b border-white/5 flex items-center justify-between px-6 lg:px-8 bg-surface/30 backdrop-blur-md">
                     <div>
                         <h2 className="text-lg lg:text-xl font-bold text-text truncate">
-                            Olá, <span className="text-luxury-gold">Roberto</span>
+                            Olá, <span className="text-luxury-gold">{userName || '...'}</span>
                         </h2>
                         <p className="text-xs text-text-muted">Bem-vindo de volta!</p>
                     </div>
