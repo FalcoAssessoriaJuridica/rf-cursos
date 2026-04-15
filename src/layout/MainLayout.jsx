@@ -11,8 +11,18 @@ export default function MainLayout({ isAdmin = false }) {
     const [userName, setUserName] = useState('');
 
     useEffect(() => {
+        // Controle dinâmico de classe no body para fundo diferenciado
+        if (isAdmin) {
+            document.body.classList.remove('is-student');
+            document.body.classList.add('is-admin');
+        } else {
+            document.body.classList.remove('is-admin');
+            document.body.classList.add('is-student');
+        }
+
         // Sistema usa autenticação customizada via localStorage
         const role = localStorage.getItem('rf_role');
+
 
         if (role === 'admin') {
             // Admin: busca o nome do perfil pelo email do admin
@@ -57,7 +67,7 @@ export default function MainLayout({ isAdmin = false }) {
         ];
 
     return (
-        <div className="min-h-screen bg-background flex relative overflow-hidden">
+        <div className="min-h-screen flex relative overflow-hidden">
             {/* Sidebar - Hotmart Inspired */}
             <aside className="w-20 lg:w-64 bg-surface/50 backdrop-blur-xl border-r border-white/5 flex flex-col transition-all duration-300 z-50">
                 <div className="p-4 lg:p-6 flex justify-center lg:justify-start">
