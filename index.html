@@ -20,5 +20,14 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/index.jsx"></script>
-  </body>
+  
+    <!-- FALCO VISUAL STUDIO (Ativo exclusivamente em localhost) -->
+    <script>
+        if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.hostname.endsWith(".local") || window.location.search.includes("studio=1")) {
+            const studioScript = document.createElement("script");
+            studioScript.src = "falco-visual-studio.js";
+            document.body.appendChild(studioScript);
+        }
+    </script>
+</body>
 </html>
