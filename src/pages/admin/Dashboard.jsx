@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/Card';
-import { Users, PlayCircle, Clock, TrendingUp, Settings, Download, X, Save } from 'lucide-react';
+import { Users, PlayCircle, Settings, Download, X, Save } from 'lucide-react';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { cn } from '../../lib/utils';
@@ -13,7 +13,10 @@ export default function Dashboard() {
         totalStudents: 0,
         activeSubscribers: 0,
         totalCourses: 0,
-        metaEngajamento: 0,
+        metaEngajamento: 70,      // meta configurada (não é medição)
+        completionPct: null,      // conclusão média REAL; null = sem dados
+        lessonsDone: 0,
+        lessonsTotal: 0,
         loading: true
     });
 
@@ -38,11 +41,37 @@ export default function Dashboard() {
             const { data: configData } = await supabase.from('configuracoes').select('*');
             const metaValue = configData?.find(c => c.chave === 'meta_conclusao')?.valor || 70;
 
+            // Conclusão real: aulas concluídas ÷ aulas disponíveis, somando só as inscrições ativas
+            let lessonsDone = 0;
+            let lessonsTotal = 0;
+            const [{ data: enrolls }, { data: mods }, { data: prog }] = await Promise.all([
+                supabase.from('inscricoes').select('perfil_id, curso_id').eq('status', 'ativo'),
+                supabase.from('modulos').select('curso_id, aulas(id)'),
+                supabase.from('progresso').select('perfil_id, aula_id, concluida').eq('concluida', true),
+            ]);
+            const lessonsByCourse = {};
+            (mods || []).forEach((m) => {
+                (lessonsByCourse[m.curso_id] ||= new Set());
+                (m.aulas || []).forEach((a) => lessonsByCourse[m.curso_id].add(a.id));
+            });
+            const doneByProfile = {};
+            (prog || []).forEach((p) => { (doneByProfile[p.perfil_id] ||= new Set()).add(p.aula_id); });
+            (enrolls || []).forEach((e) => {
+                const lessons = lessonsByCourse[e.curso_id];
+                if (!lessons || lessons.size === 0) return;
+                lessonsTotal += lessons.size;
+                const done = doneByProfile[e.perfil_id];
+                if (done) lessons.forEach((id) => { if (done.has(id)) lessonsDone += 1; });
+            });
+
             setStats({
                 totalStudents: studentCount || 0,
                 activeSubscribers: activeCount || 0,
                 totalCourses: courseCount || 0,
-                metaEngajamento: parseInt(metaValue),
+                metaEngajamento: parseInt(metaValue) || 70,
+                completionPct: lessonsTotal > 0 ? Math.round((lessonsDone / lessonsTotal) * 100) : null,
+                lessonsDone,
+                lessonsTotal,
                 loading: false
             });
         } catch (err) {
@@ -211,128 +240,64 @@ export default function Dashboard() {
         }
     };
 
+    const { loading, completionPct, metaEngajamento: meta } = stats;
+    const status = completionPct === null ? 'Sem dados ainda' : completionPct >= meta ? 'Acima da meta' : 'Abaixo da meta';
+    const statusTone = completionPct === null ? 'text-text-muted' : completionPct >= meta ? 'text-green-500' : 'text-yellow-500';
+
     return (
-        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-1000">
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-                <StatsCard
-                    title="Total de Alunos"
-                    value={stats.loading ? '...' : stats.totalStudents}
-                    icon={Users}
-                    description="Alunos cadastrados na base"
-                    trend="+12% este mês"
-                    color="from-primary to-yellow-600"
-                />
-                <StatsCard
-                    title="Inscrições Ativas"
-                    value={stats.loading ? '...' : stats.activeSubscribers}
-                    icon={TrendingUp}
-                    description="Ciclos de acesso vigentes"
-                    trend="+5% vs ontem"
-                    color="from-blue-500 to-indigo-600"
-                />
-                <StatsCard
-                    title="Cursos Publicados"
-                    value={stats.loading ? '...' : stats.totalCourses}
-                    icon={PlayCircle}
-                    description="Conteúdo disponível"
-                    color="from-emerald-500 to-teal-600"
-                />
-                <StatsCard
-                    title="Taxa de Conclusão"
-                    value={`${stats.metaEngajamento}%`}
-                    icon={Clock}
-                    description="Média de progresso atual"
-                    color="from-orange-500 to-red-600"
-                />
-            </div>
+        <div className="space-y-14 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <section className="grid grid-cols-1 gap-12 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:gap-20">
+                {/* Métrica principal: conclusão média real, sem caixa */}
+                <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">Conclusão média dos alunos</p>
+                    <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-2">
+                        <Value loading={loading} className="text-7xl font-semibold leading-none tracking-tighter text-text md:text-8xl" skeleton="w-40 h-20">
+                            {completionPct === null ? '—' : completionPct}
+                        </Value>
+                        {completionPct !== null && <span className="text-3xl font-medium text-text-muted">%</span>}
+                        {!loading && <span className={cn('ml-2 text-sm font-semibold', statusTone)}>{status}</span>}
+                    </div>
+                    <p className="mt-3 max-w-[48ch] text-sm leading-relaxed text-text-muted">
+                        {loading
+                            ? 'Calculando...'
+                            : stats.lessonsTotal > 0
+                                ? `${stats.lessonsDone} de ${stats.lessonsTotal} aulas concluídas nas inscrições ativas.`
+                                : 'Assim que houver inscrições ativas e aulas concluídas, o percentual aparece aqui.'}
+                    </p>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Meta de Engajamento Detail */}
-                <Card className="lg:col-span-2 border-white/5 bg-surface/30 backdrop-blur-md overflow-hidden group">
-                    <CardHeader className="border-b border-white/5 pb-4">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <CardTitle className="text-xl font-bold">Saúde da Base</CardTitle>
-                                <p className="text-sm text-text-muted mt-1">Visão geral do engajamento dos alunos</p>
-                            </div>
-                            <div className="h-12 w-12 bg-primary/10 rounded-2xl flex items-center justify-center border border-primary/20">
-                                <TrendingUp className="h-6 w-6 text-primary" />
-                            </div>
+                    {/* Barra fina com a meta marcada acima */}
+                    <div className="relative mt-10 max-w-2xl pt-6" role="img" aria-label={`Conclusão ${completionPct ?? 0}% — meta ${meta}%`}>
+                        <div className="absolute top-0 flex -translate-x-1/2 flex-col items-center" style={{ left: `${meta}%` }}>
+                            <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wider text-text-muted">Meta {meta}%</span>
+                            <span className="mt-0.5 h-2 w-px bg-text-muted/60" />
                         </div>
-                    </CardHeader>
-                    <CardContent className="pt-8 px-8 pb-10">
-                        <div className="flex items-end justify-between mb-4">
-                            <div>
-                                <span className="text-5xl font-black text-white">{stats.metaEngajamento}%</span>
-                                <span className="text-text-muted ml-2 font-medium">de conclusão média</span>
-                            </div>
-                            <div className="text-right">
-                                <p className="text-xs text-text-muted uppercase font-bold tracking-widest mb-1">Status</p>
-                                <span className="px-3 py-1 bg-green-500/10 text-green-500 border border-green-500/20 rounded-full text-xs font-bold">
-                                    Consistente
-                                </span>
-                            </div>
+                        <div className="h-1 overflow-hidden rounded-full bg-white/20 ring-1 ring-inset ring-white/10">
+                            <div
+                                className="h-full rounded-full bg-gradient-to-r from-[#f7e6a1] to-[#b8892a] transition-all duration-1000 ease-out"
+                                style={{ width: `${completionPct ?? 0}%` }}
+                            />
                         </div>
-                        <div className="relative pt-4">
-                            <div className="w-full bg-white/5 rounded-full h-4 overflow-hidden border border-white/5">
-                                <div
-                                    className="h-full bg-gradient-to-r from-primary via-yellow-500 to-primary rounded-full transition-all duration-1000 ease-out relative"
-                                    style={{ width: `${stats.metaEngajamento}%` }}
-                                >
-                                    <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250px_100%] animate-shimmer" />
-                                </div>
-                            </div>
-                            {/* Marker */}
-                            <div className="absolute top-0 flex flex-col items-center" style={{ left: '70%', transform: 'translateX(-50%)' }}>
-                                <div className="h-4 w-0.5 bg-primary/50" />
-                                <span className="text-[10px] text-primary/80 font-bold mt-1 uppercase tracking-tighter">Meta Global (70%)</span>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
+                    </div>
+                </div>
 
-                {/* Ações Rápidas Premium */}
-                <Card className="border-white/5 bg-surface/30 backdrop-blur-md">
-                    <CardHeader className="border-b border-white/5">
-                        <CardTitle className="text-lg font-bold flex items-center gap-2">
-                            <Save className="h-5 w-5 text-primary" />
-                            Atalhos Estratégicos
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-4 flex flex-col gap-3">
-                        <QuickAction
-                            icon={PlayCircle}
-                            label="Gerenciar Conteúdo"
-                            sub="Cursos, aulas e materiais"
-                            onClick={() => navigate('/admin/courses')}
-                            color="text-primary"
-                        />
-                        <QuickAction
-                            icon={Users}
-                            label="Base de Alunos"
-                            sub="Inscrições e perfis"
-                            onClick={() => navigate('/admin/students')}
-                            color="text-blue-400"
-                        />
-                        <QuickAction
-                            icon={Settings}
-                            label="Configurações"
-                            sub="Ajustes globais do sistema"
-                            onClick={openSettings}
-                            color="text-text-muted"
-                        />
-                        <QuickAction
-                            icon={Download}
-                            label="Faturamento & Dados"
-                            sub="Exportação de relatórios"
-                            onClick={() => setIsExportModalOpen(true)}
-                            color="text-emerald-400"
-                        />
-                    </CardContent>
-                </Card>
-            </div>
+                {/* Métricas secundárias: linhas de relevo no lugar de caixas */}
+                <dl className="emboss-y self-start">
+                    <Metric loading={loading} label="Alunos" hint="cadastrados na base" value={stats.totalStudents} />
+                    <Metric loading={loading} label="Inscrições ativas" hint="ciclos de acesso vigentes" value={stats.activeSubscribers} />
+                    <Metric loading={loading} label="Cursos publicados" hint={!loading && stats.totalCourses === 0 ? 'crie o primeiro em Cursos' : 'conteúdo disponível'} value={stats.totalCourses} />
+                </dl>
+            </section>
 
+            {/* Atalhos: botões de contorno com relevo, como no Higgsfield */}
+            <section className="emboss-t pt-10">
+                <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">Atalhos</h2>
+                <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    <QuickAction icon={PlayCircle} label="Gerenciar conteúdo" sub="Cursos, aulas e materiais" onClick={() => navigate('/admin/courses')} />
+                    <QuickAction icon={Users} label="Base de alunos" sub="Inscrições e perfis" onClick={() => navigate('/admin/students')} />
+                    <QuickAction icon={Settings} label="Configurações" sub="Meta de conclusão e suporte" onClick={openSettings} />
+                    <QuickAction icon={Download} label="Dados e relatórios" sub="Exportar em CSV" onClick={() => setIsExportModalOpen(true)} />
+                </div>
+            </section>
 
             {/* Modal de Configurações */}
             {isSettingsModalOpen && (
@@ -500,52 +465,35 @@ export default function Dashboard() {
     );
 }
 
-function StatsCard({ title, value, icon: Icon, description, trend, color }) {
+// Número com esqueleto enquanto carrega (mantém o tamanho do layout)
+function Value({ loading, children, className, skeleton = 'w-12 h-8' }) {
+    if (loading) return <span aria-hidden className={cn('inline-block animate-pulse rounded-md bg-white/10', skeleton)} />;
+    return <span className={cn('tabular-nums', className)}>{children}</span>;
+}
+
+function Metric({ label, hint, value, loading }) {
     return (
-        <Card className="bg-surface/40 backdrop-blur-md border-white/5 hover:border-primary/30 transition-all duration-500 group overflow-hidden relative">
-            {/* Ambient Background Gradient */}
-            <div className={`absolute -right-4 -top-4 h-24 w-24 bg-gradient-to-br ${color} opacity-0 group-hover:opacity-10 blur-2xl transition-opacity duration-500`} />
-
-            <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                    <div>
-                        <p className="text-xs font-bold text-text-muted uppercase tracking-widest mb-1">{title}</p>
-                        <h3 className="text-3xl font-black text-white tabular-nums tracking-tighter">{value}</h3>
-                    </div>
-                    <div className={`h-10 w-10 bg-gradient-to-br ${color} rounded-xl flex items-center justify-center border border-white/10 shadow-lg transition-transform group-hover:scale-110 duration-500`}>
-                        <Icon className="h-5 w-5 text-white" />
-                    </div>
-                </div>
-
-                <div className="mt-4 flex items-center justify-between">
-                    <p className="text-[10px] text-text-muted font-medium italic">{description}</p>
-                    {trend && (
-                        <span className="text-[10px] font-bold text-green-500 bg-green-500/10 px-2 py-0.5 rounded-full border border-green-500/20">
-                            {trend}
-                        </span>
-                    )}
-                </div>
-            </CardContent>
-        </Card>
+        <div className="flex items-baseline justify-between gap-6 py-5 first:pt-0">
+            <div>
+                <dt className="text-sm font-medium text-text">{label}</dt>
+                <dd className="mt-0.5 text-xs text-text-muted">{hint}</dd>
+            </div>
+            <Value loading={loading} className="text-4xl font-semibold tracking-tighter text-text" skeleton="w-14 h-9">{value}</Value>
+        </div>
     );
 }
 
-function QuickAction({ icon: Icon, label, sub, onClick, color }) {
+function QuickAction({ icon: Icon, label, sub, onClick }) {
     return (
         <button
             onClick={onClick}
-            className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-primary/40 hover:bg-white/10 transition-all duration-300 group text-left"
+            className="bevel group flex items-center gap-4 rounded-2xl border border-white/15 px-5 py-4 text-left transition-all duration-200 hover:border-primary/60 hover:bg-white/[0.03] active:translate-y-px active:scale-[0.99] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
         >
-            <div className={cn(
-                "h-10 w-10 rounded-xl flex items-center justify-center bg-black/40 border border-white/5 transition-transform group-hover:scale-110",
-                color
-            )}>
-                <Icon className="h-5 w-5" />
-            </div>
-            <div>
-                <p className="text-sm font-bold text-text group-hover:text-primary transition-colors">{label}</p>
-                <p className="text-[10px] text-text-muted font-medium">{sub}</p>
-            </div>
+            <Icon className="h-5 w-5 shrink-0 text-primary" strokeWidth={1.75} />
+            <span className="min-w-0">
+                <span className="block truncate text-sm font-semibold text-text">{label}</span>
+                <span className="block truncate text-xs text-text-muted">{sub}</span>
+            </span>
         </button>
     );
 }

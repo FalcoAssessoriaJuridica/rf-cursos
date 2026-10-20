@@ -88,7 +88,7 @@ export default function MainLayout({ isAdmin = false }) {
     return (
         <div className="min-h-screen flex relative overflow-hidden">
             {/* Sidebar - Hotmart Inspired */}
-            <aside className="w-20 lg:w-64 bg-surface/50 backdrop-blur-xl border-r border-white/5 flex flex-col transition-all duration-300 z-50">
+            <aside className="glass-bar !rounded-none !border-y-0 !border-l-0 w-20 lg:w-64 flex flex-col transition-all duration-300 z-50">
                 <div className="p-4 lg:p-6 flex justify-center lg:justify-start">
                     <div className="relative group">
                         <div className="absolute -inset-1 bg-gradient-to-r from-primary/50 to-primary opacity-25 group-hover:opacity-50 blur transition duration-1000 group-hover:duration-200" />
@@ -151,7 +151,7 @@ export default function MainLayout({ isAdmin = false }) {
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col min-w-0">
                 {/* Header Section */}
-                <header className="h-16 lg:h-20 border-b border-white/5 flex items-center justify-between px-6 lg:px-8 bg-surface/30 backdrop-blur-md">
+                <header className="glass-bar !rounded-none !border-x-0 !border-t-0 h-16 lg:h-20 flex items-center justify-between px-6 lg:px-8">
                     <div>
                         <h2 className="text-lg lg:text-xl font-bold text-text truncate">
                             Olá, <span className="text-luxury-gold">{userName || 'Carregando...'}</span>

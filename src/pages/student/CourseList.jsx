@@ -157,7 +157,7 @@ export default function CourseList() {
             <motion.header
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="relative overflow-hidden p-8 md:p-12 rounded-[2.5rem] liquid-glass border-white/5"
+                className="relative overflow-hidden p-8 md:p-12 rounded-[2.5rem] liquid-glass"
             >
                 <div className="relative z-10 max-w-2xl">
                     <h1 className="text-4xl md:text-5xl font-black tracking-tighter text-luxury-gold uppercase leading-none mb-4">
@@ -199,7 +199,7 @@ export default function CourseList() {
                             onClick={() => navigate(`/student/course/${course.id}`)}
                             className={`group cursor-pointer perspective-1000 ${course.access_reason ? 'opacity-70 grayscale' : ''}`}
                         >
-                            <div className="card-3d liquid-glass rounded-[2rem] overflow-hidden border-white/5 shadow-2xl transition-transform duration-500 hover:scale-[1.02] flex flex-col h-full">
+                            <div className="card-3d liquid-glass rounded-[2rem] overflow-hidden transition-transform duration-500 hover:scale-[1.02] flex flex-col h-full">
                                 {/* COURSE IMAGE */}
                                 <div className="relative aspect-video overflow-hidden">
                                     {course.capa_url ? (

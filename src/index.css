@@ -31,18 +31,25 @@
   --c-dim: 150 147 141;
   --c-border: 39 39 42;
 
-  /* Liquid glass: superfície translúcida com brilho na borda superior e leve relevo */
+  /* Vidro limpo (como os cartões/botões do Higgsfield): SEM preenchimento e SEM desfoque — a foto de fundo
+     aparece nítida através do cartão. Só um brilho muito leve, uma borda fina (white/15) e relevo (bevel). */
   --glass-bg:
-    linear-gradient(120deg, rgb(255 255 255 / 0.2) 0%, rgb(255 255 255 / 0.05) 32%, rgb(255 255 255 / 0.02) 58%, rgb(255 255 255 / 0.1) 100%),
-    rgb(15 17 22 / 0.12);
-  --glass-border: rgb(255 255 255 / 0.28);
+    linear-gradient(120deg, rgb(255 255 255 / 0.07) 0%, rgb(255 255 255 / 0.015) 38%, rgb(255 255 255 / 0) 62%, rgb(255 255 255 / 0.04) 100%);
+  --glass-border: rgb(255 255 255 / 0.15);
   --glass-relief:
-    inset 0 1px 0 rgb(255 255 255 / 0.5),
-    inset 1px 0 0 rgb(255 255 255 / 0.14),
-    inset 0 -1px 0 rgb(255 255 255 / 0.1),
-    inset 0 0 22px rgb(255 255 255 / 0.05);
-  --glass-drop: 0 8px 28px -10px rgb(0 0 0 / 0.55);
-  --glass-filter: blur(12px) saturate(1.8);
+    inset 0 1px 0 rgb(255 255 255 / 0.3),
+    inset 1px 0 0 rgb(255 255 255 / 0.09),
+    inset 0 -1px 0 rgb(0 0 0 / 0.55),
+    inset -1px 0 0 rgb(0 0 0 / 0.22),
+    0 1px 0 rgb(255 255 255 / 0.07);
+  --glass-drop: 0 4px 10px -3px rgb(0 0 0 / 0.55);
+  --glass-filter: none;
+  /* Barras (lateral/topo): faixa escura translúcida, como a barra lateral do Higgsfield */
+  --glass-bar-bg: linear-gradient(120deg, rgb(255 255 255 / 0.1) 0%, rgb(255 255 255 / 0.02) 50%, rgb(255 255 255 / 0.06) 100%), rgb(10 12 15 / 0.5);
+  --glass-bar-filter: blur(14px) saturate(1.5);
+  /* Linhas de relevo (3px: brilho, corpo suave, base escura) para separar blocos sem usar caixas */
+  --ridge-v: linear-gradient(to bottom, rgb(255 255 255 / 0.3) 0 1px, rgb(255 255 255 / 0.09) 1px 2px, rgb(0 0 0 / 0.55) 2px 3px);
+  --ridge-h: linear-gradient(to right, rgb(255 255 255 / 0.3) 0 1px, rgb(255 255 255 / 0.09) 1px 2px, rgb(0 0 0 / 0.55) 2px 3px);
 }
 
 /* Tema claro: o mesmo vidro, agora sobre superfície clara */
@@ -61,16 +68,20 @@ html[data-theme='light'] {
   --c-border: 212 212 216;
 
   --glass-bg:
-    linear-gradient(120deg, rgb(255 255 255 / 0.42) 0%, rgb(255 255 255 / 0.1) 34%, rgb(255 255 255 / 0.03) 60%, rgb(255 255 255 / 0.28) 100%),
-    rgb(255 255 255 / 0.02);
-  --glass-border: rgb(255 255 255 / 0.65);
+    linear-gradient(120deg, rgb(255 255 255 / 0.4) 0%, rgb(255 255 255 / 0.08) 40%, rgb(255 255 255 / 0.02) 62%, rgb(255 255 255 / 0.22) 100%),
+    rgb(255 255 255 / 0.1);
+  --glass-border: rgb(255 255 255 / 0.8);
   --glass-relief:
-    inset 0 1px 0 rgb(255 255 255 / 0.9),
-    inset 1px 0 0 rgb(255 255 255 / 0.5),
-    inset 0 -1px 0 rgb(24 24 27 / 0.12),
+    inset 0 1px 0 rgb(255 255 255 / 0.95),
+    inset 1px 0 0 rgb(255 255 255 / 0.55),
+    inset 0 -1px 0 rgb(24 24 27 / 0.14),
     inset -1px 0 0 rgb(24 24 27 / 0.06);
-  --glass-drop: 0 10px 30px -12px rgb(24 24 27 / 0.3);
-  --glass-filter: blur(12px) saturate(1.6);
+  --glass-drop: 0 6px 16px -8px rgb(24 24 27 / 0.28);
+  --glass-filter: blur(6px) saturate(1.3);
+  --glass-bar-bg: linear-gradient(120deg, rgb(255 255 255 / 0.55) 0%, rgb(255 255 255 / 0.3) 60%, rgb(255 255 255 / 0.45) 100%), rgb(255 255 255 / 0.22);
+  --glass-bar-filter: blur(16px) saturate(1.4);
+  --ridge-v: linear-gradient(to bottom, rgb(255 255 255 / 0.9) 0 1px, rgb(255 255 255 / 0.45) 1px 2px, rgb(24 24 27 / 0.2) 2px 3px);
+  --ridge-h: linear-gradient(to right, rgb(255 255 255 / 0.9) 0 1px, rgb(255 255 255 / 0.45) 1px 2px, rgb(24 24 27 / 0.2) 2px 3px);
 }
 
 body {
@@ -90,7 +101,7 @@ body::before {
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
-  opacity: 0.5;
+  opacity: 0.35;
   z-index: -1;
   pointer-events: none;
   transition: background-image 0.5s ease-in-out;
@@ -101,8 +112,8 @@ body::before {
 
 /* Tema claro: a foto de fundo vira uma textura suave por trás do vidro */
 html[data-theme='light'] body::before {
-  opacity: 0.42;
-  filter: grayscale(0.15) brightness(1.5) contrast(0.92) saturate(1.1);
+  opacity: 0.4;
+  filter: none;
 }
 
 /* Fundo específico para a Área do Aluno */
@@ -126,6 +137,15 @@ body.is-student::before {
     backdrop-filter: var(--glass-filter);
     border: 1px solid var(--glass-border);
     box-shadow: var(--glass-relief), var(--glass-drop);
+  }
+
+  /* Barras de navegação (lateral e superior): translúcidas, com um pouco mais de corpo para manter a leitura */
+  .glass-bar {
+    background: var(--glass-bar-bg);
+    -webkit-backdrop-filter: var(--glass-bar-filter);
+    backdrop-filter: var(--glass-bar-filter);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-relief);
   }
 
   .glass-hover {
@@ -264,3 +284,25 @@ html[data-theme='light'] .border-yellow-900 { border-color: rgb(161 98 7 / 0.4);
 
 /* Tema claro: placeholders legíveis sobre o vidro */
 html[data-theme='light'] ::placeholder { color: rgb(var(--c-muted) / 0.85); opacity: 1; }
+
+
+/* Divisórias em relevo: .emboss-y = entre filhos empilhados; .emboss-t = no topo do elemento */
+.emboss-y > * + *,
+.emboss-t { position: relative; }
+.emboss-y > * + *::before,
+.emboss-t::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--ridge-v);
+  pointer-events: none;
+}
+
+/* Tema claro: conteúdo solto sobre a foto (sem caixa) ganha um halo claro para manter o contraste */
+html[data-theme='light'] main {
+  text-shadow: 0 0 12px rgb(255 255 255 / 0.85), 0 0 3px rgb(255 255 255 / 0.7);
+}
+html[data-theme='light'] .text-yellow-500 { color: rgb(133 77 14); }
