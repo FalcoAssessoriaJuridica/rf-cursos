@@ -6,6 +6,10 @@ import { Input } from '../../components/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/Card';
 import { Plus, Search, Book, Pencil, Trash2, X, Image as ImageIcon, Upload } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { motion } from 'framer-motion';
+import { DEMO_COURSES, DEMO_STUDENTS, getDemoEnrollments, withDemoCover, setDemoCover } from '../../lib/demoCourses';
+import CoverCropper from '../../components/CoverCropper';
+import { coverStyle } from '../../lib/cover';
 
 export default function Courses() {
     const navigate = useNavigate();
@@ -15,7 +19,9 @@ export default function Courses() {
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingId, setEditingId] = useState(null);
-    const [newCourse, setNewCourse] = useState({ titulo: '', descricao: '', capa_url: '', capa_posicao_y: 50, capa_posicao_x: 50 });
+    const [newCourse, setNewCourse] = useState({ titulo: '', descricao: '', capa_url: '', capa_posicao_y: 50, capa_posicao_x: 50, capa_zoom: 1 });
+    const [editingDemo, setEditingDemo] = useState(false); // curso demo: só o enquadramento da capa é editável
+    const [demoTick, setDemoTick] = useState(0);
     const [courseToDelete, setCourseToDelete] = useState(null);
 
     useEffect(() => {
@@ -42,16 +48,19 @@ export default function Courses() {
     const openModal = (course = null) => {
         if (course) {
             setEditingId(course.id);
+            setEditingDemo(!!course.is_demo);
             setNewCourse({
                 titulo: course.titulo || '',
                 descricao: course.descricao || '',
                 capa_url: course.capa_url || '',
                 capa_posicao_y: course.capa_posicao_y ?? 50,
-                capa_posicao_x: course.capa_posicao_x ?? 50
+                capa_posicao_x: course.capa_posicao_x ?? 50,
+                capa_zoom: Number(course.capa_zoom) || 1
             });
         } else {
             setEditingId(null);
-            setNewCourse({ titulo: '', descricao: '', capa_url: '', capa_posicao_y: 50, capa_posicao_x: 50 });
+            setEditingDemo(false);
+            setNewCourse({ titulo: '', descricao: '', capa_url: '', capa_posicao_y: 50, capa_posicao_x: 50, capa_zoom: 1 });
         }
         setIsModalOpen(true);
     };
@@ -92,19 +101,35 @@ export default function Courses() {
         try {
             setLoading(true);
 
+            if (editingDemo) {
+                setDemoCover(editingId, newCourse);
+                setIsModalOpen(false);
+                setDemoTick(t => t + 1);
+                return;
+            }
+
+            // `capa_zoom` precisa existir na tabela `cursos`. Se ainda não existir, salva sem ele e avisa.
+            const saveWithZoomFallback = async (run) => {
+                let { error } = await run(newCourse);
+                if (error && /capa_zoom/i.test(error.message || '')) {
+                    const { capa_zoom, ...semZoom } = newCourse; // eslint-disable-line no-unused-vars
+                    ({ error } = await run(semZoom));
+                    if (!error) alert('Curso salvo, mas o ZOOM da capa não foi gravado: falta a coluna "capa_zoom" na tabela cursos (veja o SQL de migração).');
+                }
+                return error;
+            };
+
             if (editingId) {
-                const { error } = await supabase
-                    .from('cursos')
-                    .update(newCourse)
-                    .eq('id', editingId);
+                const error = await saveWithZoomFallback((payload) => supabase.from('cursos').update(payload).eq('id', editingId));
                 if (error) throw error;
                 alert("Curso atualizado com sucesso!");
             } else {
-                const { data: createdCourse, error } = await supabase
-                    .from('cursos')
-                    .insert([newCourse])
-                    .select()
-                    .single();
+                let createdCourse = null;
+                const error = await saveWithZoomFallback(async (payload) => {
+                    const res = await supabase.from('cursos').insert([payload]).select().single();
+                    createdCourse = res.data;
+                    return res;
+                });
 
                 if (error) throw error;
 
@@ -155,7 +180,29 @@ export default function Courses() {
         }
     };
 
-    const filteredCourses = courses.filter(c =>
+    // Cursos de demonstração (locais) aparecem junto com os reais, marcados como DEMO
+    const demoCourses = DEMO_COURSES.map(c => ({
+        ...withDemoCover({ id: c.id }),
+        id: c.id,
+        titulo: c.titulo,
+        descricao: c.descricao,
+        capa_url: c.capa_url,
+        is_demo: true,
+        total_aulas: c.modulos.reduce((n, m) => n + m.aulas.length, 0),
+        total_alunos: DEMO_STUDENTS.filter(st => getDemoEnrollments(st.id).some(e => e.curso_id === c.id)).length,
+    }));
+
+    // Mesma animação dos cards da Área do Aluno: entrada escalonada + zoom suave no hover
+    const containerVariants = {
+        hidden: { opacity: 0 },
+        visible: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.2 } },
+    };
+    const cardVariants = {
+        hidden: { opacity: 0, y: 20, scale: 0.95 },
+        visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.5, ease: [0.23, 1, 0.32, 1] } },
+    };
+
+    const filteredCourses = [...courses, ...demoCourses].filter(c =>
         c.titulo?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
@@ -172,7 +219,7 @@ export default function Courses() {
                 </Button>
             </div>
 
-            <div className="flex items-center gap-4 bg-surface p-4 rounded-lg border border-border">
+            <div className="glass flex items-center gap-4 p-4 rounded-lg">
                 <Search className="h-5 w-5 text-text-muted" />
                 <Input
                     placeholder="Buscar por título do curso..."
@@ -182,66 +229,93 @@ export default function Courses() {
                 />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <motion.div
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+            >
                 {loading && courses.length === 0 ? (
                     <div className="col-span-full text-center py-12 text-text-muted">Carregando cursos...</div>
                 ) : filteredCourses.length === 0 ? (
                     <div className="col-span-full text-center py-12 text-text-muted">Nenhum curso encontrado.</div>
                 ) : (
                     filteredCourses.map((course) => (
-                        <Card key={course.id} className="overflow-hidden group border-border hover:border-primary/50 transition-all card-3d">
-                            <div className="aspect-video bg-black/40 relative">
+                        <motion.div key={course.id} variants={cardVariants} className="group perspective-1000">
+                        <Card className="card-3d liquid-glass rounded-[2rem] overflow-hidden transition-transform duration-500 hover:scale-[1.02] h-full">
+                            <div className="aspect-video bg-black/40 relative overflow-hidden">
                                 {course.capa_url ? (
                                     <img
                                         src={course.capa_url}
                                         alt={course.titulo}
-                                        className="w-full h-full object-cover transition-all duration-500"
-                                        style={{ objectPosition: `${course.capa_posicao_x || 50}% ${course.capa_posicao_y || 50}%` }}
+                                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                        style={coverStyle(course)}
                                     />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-text-muted">
                                         <ImageIcon className="h-10 w-10" />
                                     </div>
                                 )}
+                                {course.is_demo && (
+                                    <span className="absolute top-2 left-2 rounded bg-primary text-black px-2 py-0.5 text-[10px] font-black tracking-widest">DEMO</span>
+                                )}
                                 <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <Button variant="secondary" size="icon" className="h-8 w-8 text-primary" title="Gerenciar Conteúdo" onClick={() => navigate(`/admin/courses/${course.id}/content`)}>
-                                        <Book className="h-4 w-4" />
-                                    </Button>
-                                    <Button variant="secondary" size="icon" className="h-8 w-8" onClick={() => openModal(course)}>
-                                        <Pencil className="h-4 w-4" />
-                                    </Button>
-                                    <Button variant="secondary" size="icon" className="h-8 w-8 text-red-500" onClick={(e) => handleDeleteClick(e, course)}>
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
+                                    {course.is_demo ? (
+                                        <>
+                                            <Button variant="secondary" size="icon" className="h-8 w-8 text-primary" title="Visualizar curso (demo)" onClick={() => navigate(`/student/course/${course.id}`)}>
+                                                <Book className="h-4 w-4" />
+                                            </Button>
+                                            <Button variant="secondary" size="icon" className="h-8 w-8" title="Ajustar capa" onClick={() => openModal(course)}>
+                                                <ImageIcon className="h-4 w-4" />
+                                            </Button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Button variant="secondary" size="icon" className="h-8 w-8 text-primary" title="Gerenciar Conteúdo" onClick={() => navigate(`/admin/courses/${course.id}/content`)}>
+                                                <Book className="h-4 w-4" />
+                                            </Button>
+                                            <Button variant="secondary" size="icon" className="h-8 w-8" onClick={() => openModal(course)}>
+                                                <Pencil className="h-4 w-4" />
+                                            </Button>
+                                            <Button variant="secondary" size="icon" className="h-8 w-8 text-red-500" onClick={(e) => handleDeleteClick(e, course)}>
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                             <CardContent className="p-4">
                                 <h3 className="text-lg font-bold text-text truncate">{course.titulo}</h3>
                                 <p className="text-sm text-text-muted line-clamp-2 mt-1 h-10">{course.descricao || 'Sem descrição'}</p>
+                                {course.is_demo && (
+                                    <p className="mt-2 text-[11px] text-text-muted">{course.total_aulas} aulas · {course.total_alunos} aluno(s) com acesso</p>
+                                )}
                             </CardContent>
                         </Card>
+                        </motion.div>
                     ))
                 )}
-            </div>
+            </motion.div>
 
             {/* Modal de Cadastro/Edição */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
                     <Card className="w-full max-w-lg border-primary/30 max-h-[90vh] flex flex-col">
                         <CardHeader className="flex flex-row justify-between items-center border-b border-border/50">
-                            <CardTitle>{editingId ? 'Editar Curso' : 'Novo Curso'}</CardTitle>
+                            <CardTitle>{editingDemo ? 'Ajustar capa (curso demo)' : editingId ? 'Editar Curso' : 'Novo Curso'}</CardTitle>
                             <button onClick={() => setIsModalOpen(false)}><X className="h-5 w-5 text-text-muted hover:text-primary transition-colors" /></button>
                         </CardHeader>
                         <CardContent className="overflow-y-auto flex-1">
                             <form onSubmit={handleSubmit} className="space-y-4">
                                 <div className="space-y-1">
                                     <label className="text-xs text-text-muted uppercase font-bold tracking-wider">Título do Curso</label>
-                                    <Input placeholder="Ex: Piano Popular I" required value={newCourse.titulo} onChange={e => setNewCourse({ ...newCourse, titulo: e.target.value })} />
+                                    <Input placeholder="Ex: Piano Popular I" required disabled={editingDemo} value={newCourse.titulo} onChange={e => setNewCourse({ ...newCourse, titulo: e.target.value })} />
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-xs text-text-muted uppercase font-bold tracking-wider">Descrição</label>
                                     <textarea
-                                        className="w-full min-h-[100px] bg-surface border border-border rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 text-text"
+                                        disabled={editingDemo}
+                                        className="w-full min-h-[100px] bg-black/20 backdrop-blur-md border border-border rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 text-text"
                                         placeholder="Breve descrição do curso..."
                                         value={newCourse.descricao}
                                         onChange={e => setNewCourse({ ...newCourse, descricao: e.target.value })}
@@ -250,33 +324,28 @@ export default function Courses() {
                                 <div className="space-y-2">
                                     <label className="text-xs text-text-muted uppercase font-bold tracking-wider">Capa do Curso</label>
 
-                                    <div className="relative aspect-video w-full bg-black/40 border-2 border-dashed border-border rounded-lg overflow-hidden group/image transition-all hover:border-primary/50">
-                                        {newCourse.capa_url ? (
-                                            <>
-                                                <img
-                                                    src={newCourse.capa_url}
-                                                    alt="Capa"
-                                                    className="w-full h-full object-cover transition-all"
-                                                    style={{ objectPosition: `${newCourse.capa_posicao_x}% ${newCourse.capa_posicao_y}%` }}
-                                                />
-                                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/image:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                                    <label className="cursor-pointer bg-primary text-black px-4 py-2 rounded-md text-xs font-bold hover:scale-105 transition-transform flex items-center gap-2">
+                                    {newCourse.capa_url ? (
+                                        <>
+                                            <CoverCropper
+                                                src={newCourse.capa_url}
+                                                value={{ x: newCourse.capa_posicao_x, y: newCourse.capa_posicao_y, zoom: newCourse.capa_zoom }}
+                                                onChange={(v) => setNewCourse(prev => ({ ...prev, capa_posicao_x: v.x, capa_posicao_y: v.y, capa_zoom: v.zoom }))}
+                                            />
+                                            {!editingDemo && (
+                                                <div className="flex gap-2">
+                                                    <label className="cursor-pointer inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-xs font-bold text-black hover:bg-primary-hover transition-colors">
                                                         <Upload className="h-4 w-4" />
-                                                        Trocar Imagem
+                                                        {uploading ? 'Enviando...' : 'Trocar imagem'}
                                                         <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} disabled={uploading} />
                                                     </label>
-                                                    <Button
-                                                        variant="secondary"
-                                                        size="sm"
-                                                        type="button"
-                                                        className="bg-red-500/20 text-red-500 hover:bg-red-500/40 border-none"
-                                                        onClick={() => setNewCourse(prev => ({ ...prev, capa_url: '' }))}
-                                                    >
+                                                    <Button type="button" variant="secondary" size="sm" className="text-red-500" onClick={() => setNewCourse(prev => ({ ...prev, capa_url: '', capa_posicao_x: 50, capa_posicao_y: 50, capa_zoom: 1 }))}>
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
                                                 </div>
-                                            </>
-                                        ) : (
+                                            )}
+                                        </>
+                                    ) : (
+                                        <div className="relative aspect-video w-full bg-black/40 border-2 border-dashed border-border rounded-lg overflow-hidden transition-all hover:border-primary/50">
                                             <label className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer hover:bg-white/5 transition-colors">
                                                 <div className="bg-primary/10 p-4 rounded-full mb-2">
                                                     <Upload className="h-8 w-8 text-primary" />
@@ -285,55 +354,18 @@ export default function Courses() {
                                                 <span className="text-[10px] text-text-muted mt-1 uppercase tracking-wider">Recomendado: 1280x720 (16:9)</span>
                                                 <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} disabled={uploading} />
                                             </label>
-                                        )}
-
-                                        {uploading && (
-                                            <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-2 z-10">
-                                                <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-                                                <span className="text-xs text-primary font-bold animate-pulse">ENVIANDO...</span>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {newCourse.capa_url && (
-                                        <div className="bg-black/20 p-3 rounded-lg border border-border mt-2 space-y-4">
-                                            <div className="space-y-2">
-                                                <div className="flex justify-between items-center text-[10px] text-text-muted uppercase font-bold tracking-widest">
-                                                    <span>Ajuste Horizontal</span>
-                                                    <span className="text-primary">{newCourse.capa_posicao_x}%</span>
+                                            {uploading && (
+                                                <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-2 z-10">
+                                                    <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                                                    <span className="text-xs text-primary font-bold animate-pulse">ENVIANDO...</span>
                                                 </div>
-                                                <input
-                                                    type="range"
-                                                    min="0"
-                                                    max="100"
-                                                    value={newCourse.capa_posicao_x}
-                                                    onChange={(e) => setNewCourse(prev => ({ ...prev, capa_posicao_x: parseInt(e.target.value) }))}
-                                                    className="w-full accent-primary cursor-pointer"
-                                                />
-                                            </div>
-
-                                            <div className="space-y-2">
-                                                <div className="flex justify-between items-center text-[10px] text-text-muted uppercase font-bold tracking-widest">
-                                                    <span>Ajuste Vertical</span>
-                                                    <span className="text-primary">{newCourse.capa_posicao_y}%</span>
-                                                </div>
-                                                <input
-                                                    type="range"
-                                                    min="0"
-                                                    max="100"
-                                                    value={newCourse.capa_posicao_y}
-                                                    onChange={(e) => setNewCourse(prev => ({ ...prev, capa_posicao_y: parseInt(e.target.value) }))}
-                                                    className="w-full accent-primary cursor-pointer"
-                                                />
-                                            </div>
+                                            )}
                                         </div>
                                     )}
-
-                                    <p className="text-[10px] text-text-muted italic text-center">Use os controles acima para enquadrar a imagem.</p>
                                 </div>
                                 <div className="flex justify-end gap-3 pt-4">
                                     <Button variant="ghost" type="button" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
-                                    <Button type="submit" isLoading={loading}>{editingId ? 'Salvar Alterações' : 'Criar Curso'}</Button>
+                                    <Button type="submit" isLoading={loading}>{editingDemo ? 'Salvar enquadramento' : editingId ? 'Salvar Alterações' : 'Criar Curso'}</Button>
                                 </div>
                             </form>
                         </CardContent>

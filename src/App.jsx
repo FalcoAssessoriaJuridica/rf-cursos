@@ -9,6 +9,7 @@ import Courses from './pages/admin/Courses';
 import CourseContent from './pages/admin/CourseContent';
 import CourseList from './pages/student/CourseList';
 import Player from './pages/student/Player';
+import CourseDetail from './pages/student/CourseDetail';
 
 // Admin Guard (placeholder - implementation depends on auth logic details)
 const AdminRoute = ({ children }) => {
@@ -71,6 +72,7 @@ function App() {
           {/* Student Routes */}
           <Route path="/student" element={<MainLayout isAdmin={false} />}>
             <Route index element={<CourseList />} />
+            <Route path="course/:courseId" element={<CourseDetail />} />
             <Route path="course/:courseId/lesson/:lessonId" element={<Player />} />
           </Route>
 

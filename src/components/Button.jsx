@@ -4,8 +4,8 @@ import { LoaderCircle } from 'lucide-react';
 
 export const Button = React.forwardRef(({ className, variant = 'primary', size = 'default', isLoading, children, ...props }, ref) => {
     const variants = {
-        primary: 'bg-primary text-black hover:bg-primary-hover shadow-[0_0_15px_rgba(212,175,55,0.3)]',
-        secondary: 'bg-surface border border-border text-text hover:bg-white/10',
+        primary: 'bevel bg-primary text-black hover:bg-primary-hover',
+        secondary: 'glass text-text hover:bg-white/10',
         outline: 'border border-primary text-primary hover:bg-primary/10',
         ghost: 'hover:bg-white/10 text-text',
         link: 'text-primary underline-offset-4 hover:underline',

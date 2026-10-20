@@ -4,8 +4,9 @@ import { supabase } from '../../lib/supabase';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/Card';
-import { Plus, Search, MoreVertical, ShieldCheck, ShieldOff, Calendar, UserPlus, Pencil, X, Trash2 } from 'lucide-react';
+import { Plus, Search, MoreVertical, ShieldCheck, ShieldOff, Calendar, UserPlus, Pencil, X, Trash2, LogIn } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { DEMO_COURSES, DEMO_STUDENTS, DEMO_PASSWORD, getDemoEnrollments, setDemoEnrollments, readDemoProgress, accessStatus, accessLabel, addDaysISO } from '../../lib/demoCourses';
 
 export default function Students() {
     const navigate = useNavigate();
@@ -23,6 +24,9 @@ export default function Students() {
         senha: ''
     });
     const [courses, setCourses] = useState([]);
+    const [demoTick, setDemoTick] = useState(0); // força releitura dos alunos demo após editar acesso
+    const [demoEditing, setDemoEditing] = useState(null); // aluno demo em edição de acesso
+    const [demoDraft, setDemoDraft] = useState([]);
     const [lessonStats, setLessonStats] = useState({}); // { curso_id: totalLessons }
     const [aulaIdToCursoId, setAulaIdToCursoId] = useState({}); // { aula_id: curso_id }
 
@@ -276,8 +280,64 @@ export default function Students() {
         s.email?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    // ── Alunos de demonstração (locais) ──
+    const demoStudents = DEMO_STUDENTS.map(st => {
+        const prog = readDemoProgress(st.id);
+        return {
+            ...st,
+            is_demo: true,
+            cursos_info: getDemoEnrollments(st.id).map(e => {
+                const c = DEMO_COURSES.find(x => x.id === e.curso_id);
+                const aulas = c ? c.modulos.flatMap(m => m.aulas) : [];
+                const done = aulas.filter(a => prog[a.id]?.concluida).length;
+                return {
+                    ...e,
+                    titulo: c?.titulo || e.curso_id,
+                    status: accessStatus(e),
+                    percent: aulas.length ? Math.round((done / aulas.length) * 100) : 0,
+                };
+            }),
+        };
+    });
+
+    const impersonateDemo = (st) => {
+        localStorage.setItem('rf_role', 'student');
+        localStorage.setItem('rf_user_id', st.id);
+        localStorage.setItem('rf_user_email', st.email);
+        localStorage.setItem('rf_user_name', st.nome_completo);
+        navigate('/student');
+    };
+
+    const openDemoAccess = (st) => {
+        setDemoEditing(st);
+        setDemoDraft(getDemoEnrollments(st.id));
+    };
+
+    const saveDemoAccess = () => {
+        setDemoEnrollments(demoEditing.id, demoDraft);
+        setDemoEditing(null);
+        setDemoTick(t => t + 1);
+    };
+
+    // Bloqueio manual de todas as matrículas do aluno (ou desbloqueio, se já estiver tudo bloqueado)
+    const toggleDemoBlock = (st) => {
+        const enr = getDemoEnrollments(st.id);
+        if (enr.length === 0) return;
+        const allBlocked = enr.every(e => e.bloqueado);
+        setDemoEnrollments(st.id, enr.map(e => ({ ...e, bloqueado: !allBlocked })));
+        setDemoTick(t => t + 1);
+    };
+
+    const patchDraft = (cursoId, patch) =>
+        setDemoDraft(d => d.map(e => e.curso_id === cursoId ? { ...e, ...patch } : e));
+
+    const filteredDemoStudents = demoStudents.filter(s =>
+        s.nome_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        s.email.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
     return (
-        <div className="space-y-6">
+        <div className="space-y-6" data-demo-tick={demoTick}>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                     <h2 className="text-3xl font-bold text-text">Gestão de Alunos</h2>
@@ -289,7 +349,7 @@ export default function Students() {
                 </Button>
             </div>
 
-            <div className="flex items-center gap-4 bg-surface p-4 rounded-lg border border-border">
+            <div className="glass flex items-center gap-4 p-4 rounded-lg">
                 <Search className="h-5 w-5 text-text-muted" />
                 <Input
                     placeholder="Buscar por nome ou email..."
@@ -313,7 +373,7 @@ export default function Students() {
                         <tbody>
                             {loading && students.length === 0 ? (
                                 <tr><td colSpan="4" className="text-center py-8">Carregando...</td></tr>
-                            ) : (filteredStudents || []).length === 0 ? (
+                            ) : (filteredStudents || []).length === 0 && filteredDemoStudents.length === 0 ? (
                                 <tr><td colSpan="4" className="text-center py-8 text-text-muted">Nenhum aluno encontrado.</td></tr>
                             ) : (
                                 (filteredStudents || []).map((student) => {
@@ -387,6 +447,63 @@ export default function Students() {
                                     );
                                 })
                             )}
+                            {filteredDemoStudents.map((st) => (
+                                <tr key={st.id} className="border-b border-border hover:bg-white/5 transition-colors">
+                                    <td className="px-6 py-4 font-medium text-text">
+                                        <div className="flex flex-col">
+                                            <span className="flex items-center gap-2">
+                                                {st.nome_completo}
+                                                <span className="rounded bg-primary text-black px-1.5 py-0.5 text-[9px] font-black tracking-widest">DEMO</span>
+                                            </span>
+                                            <span className="text-[10px] text-text-muted">{st.email} · senha: {DEMO_PASSWORD}</span>
+                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                {st.cursos_info.length === 0 && <span className="text-[9px] text-text-muted italic">Sem acesso a nenhum curso</span>}
+                                                {st.cursos_info.map(ci => (
+                                                    <span key={ci.curso_id} className={cn(
+                                                        "text-[9px] px-1.5 py-0.5 rounded border flex items-center gap-1",
+                                                        ci.status === 'ativo' ? "bg-primary/10 text-primary border-primary/20" : "bg-red-500/10 text-red-400 border-red-500/30"
+                                                    )}>
+                                                        {ci.titulo}
+                                                        <span className="font-bold opacity-70">({ci.percent}%)</span>
+                                                        <span className="opacity-80">· {ci.status === 'bloqueado' ? 'Bloqueado' : ci.status === 'expirado' ? accessLabel(ci.expira_em) : accessLabel(ci.expira_em)}</span>
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        {(() => {
+                                            const enr = st.cursos_info;
+                                            const active = enr.filter(e => e.status === 'ativo').length;
+                                            const label = enr.length === 0 ? 'Sem cursos' : active === enr.length ? 'Ativo' : active === 0 ? 'Bloqueado' : 'Parcial';
+                                            return (
+                                                <span className={cn(
+                                                    "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border",
+                                                    label === 'Ativo' ? "bg-green-900/30 text-green-400 border-green-900" : label === 'Parcial' ? "bg-yellow-900/30 text-yellow-400 border-yellow-900" : "bg-red-900/30 text-red-400 border-red-900"
+                                                )}>{label}</span>
+                                            );
+                                        })()}
+                                    </td>
+                                    <td className="px-6 py-4 text-text-muted text-xs">
+                                        {st.cursos_info.length === 0 ? '—' : st.cursos_info.every(e => !e.expira_em) ? 'Vitalício' : 'Por curso'}
+                                    </td>
+                                    <td className="px-6 py-4 text-right flex justify-end gap-2">
+                                        <Button variant="ghost" size="icon" title="Editar acesso, expiração e bloqueio" onClick={() => openDemoAccess(st)}>
+                                            <Pencil className="h-4 w-4 text-primary" />
+                                        </Button>
+                                        <Button variant="ghost" size="icon"
+                                            title={st.cursos_info.length > 0 && st.cursos_info.every(e => e.bloqueado) ? 'Desbloquear aluno' : 'Bloquear aluno (todos os cursos)'}
+                                            onClick={() => toggleDemoBlock(st)}>
+                                            {st.cursos_info.length > 0 && st.cursos_info.every(e => e.bloqueado)
+                                                ? <ShieldCheck className="h-4 w-4 text-green-500" />
+                                                : <ShieldOff className="h-4 w-4 text-red-500" />}
+                                        </Button>
+                                        <Button variant="ghost" size="icon" title="Entrar como este aluno (teste)" onClick={() => impersonateDemo(st)}>
+                                            <LogIn className="h-4 w-4 text-green-500" />
+                                        </Button>
+                                    </td>
+                                </tr>
+                            ))}
                         </tbody>
                     </table>
                 </div>
@@ -419,7 +536,13 @@ export default function Students() {
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-1">
                                         <label className="text-xs text-text-muted">Expiração de Acesso</label>
-                                        <Input type="date" value={newStudent.data_expiracao} onChange={e => setNewStudent({ ...newStudent, data_expiracao: e.target.value })} />
+                                        <Input type="date" value={newStudent.data_expiracao ? String(newStudent.data_expiracao).slice(0, 10) : ''} onChange={e => setNewStudent({ ...newStudent, data_expiracao: e.target.value })} />
+                                        <div className="flex gap-2 pt-1">
+                                            <button type="button" onClick={() => setNewStudent({ ...newStudent, data_expiracao: addDaysISO(30).slice(0, 10) })}
+                                                className="text-xs px-2.5 py-1 rounded-md border border-primary/40 text-primary hover:bg-primary/10 transition-colors">+30 dias</button>
+                                            <button type="button" onClick={() => setNewStudent({ ...newStudent, data_expiracao: '' })}
+                                                className="text-xs px-2.5 py-1 rounded-md border border-border text-text-muted hover:bg-white/5 transition-colors">Vitalício</button>
+                                        </div>
                                     </div>
                                     <div className="col-span-2 space-y-2">
                                         <label className="text-xs text-text-muted uppercase font-bold tracking-wider">Cursos com Acesso</label>
@@ -449,6 +572,72 @@ export default function Students() {
                                     <Button type="submit" isLoading={loading}>{editingId ? 'Salvar Alterações' : 'Cadastrar e Liberar'}</Button>
                                 </div>
                             </form>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
+            {/* Modal: cursos, expiração e bloqueio (aluno demo) */}
+            {demoEditing && (
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+                    <Card className="w-full max-w-xl border-primary/30 max-h-[90vh] flex flex-col">
+                        <CardHeader className="flex flex-row justify-between items-center">
+                            <CardTitle>Acesso de {demoEditing.nome_completo}</CardTitle>
+                            <button onClick={() => setDemoEditing(null)}><X className="h-5 w-5 text-text-muted" /></button>
+                        </CardHeader>
+                        <CardContent className="space-y-4 overflow-y-auto">
+                            <div className="space-y-3">
+                                {DEMO_COURSES.map(c => {
+                                    const enr = demoDraft.find(e => e.curso_id === c.id);
+                                    const status = enr ? accessStatus(enr) : null;
+                                    return (
+                                        <div key={c.id} className="rounded-md border border-border bg-black/20 p-3 space-y-3">
+                                            <label className="flex items-center justify-between gap-2 text-sm cursor-pointer">
+                                                <span className="flex items-center gap-2 hover:text-primary transition-colors">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="accent-primary"
+                                                        checked={!!enr}
+                                                        onChange={e => setDemoDraft(e.target.checked
+                                                            ? [...demoDraft, { curso_id: c.id, expira_em: null, bloqueado: false }]
+                                                            : demoDraft.filter(x => x.curso_id !== c.id))}
+                                                    />
+                                                    {c.titulo}
+                                                </span>
+                                                {enr && (
+                                                    <span className={cn("text-[10px] font-bold uppercase tracking-wider", status === 'ativo' ? 'text-green-400' : 'text-red-400')}>
+                                                        {status === 'ativo' ? accessLabel(enr.expira_em) : status === 'bloqueado' ? 'Bloqueado' : accessLabel(enr.expira_em)}
+                                                    </span>
+                                                )}
+                                            </label>
+
+                                            {enr && (
+                                                <div className="flex flex-wrap items-center gap-2 pl-6">
+                                                    <span className="text-[10px] uppercase tracking-wider text-text-muted">Expiração</span>
+                                                    <button type="button" onClick={() => patchDraft(c.id, { expira_em: addDaysISO(30) })}
+                                                        className="text-xs px-2.5 py-1 rounded-md border border-primary/40 text-primary hover:bg-primary/10 transition-colors">30 dias</button>
+                                                    <button type="button" onClick={() => patchDraft(c.id, { expira_em: null })}
+                                                        className="text-xs px-2.5 py-1 rounded-md border border-border text-text-muted hover:bg-white/5 transition-colors">Vitalício</button>
+                                                    <input
+                                                        type="date"
+                                                        className="h-8 rounded-md bg-black/20 backdrop-blur-md border border-border px-2 text-xs text-text"
+                                                        value={enr.expira_em ? enr.expira_em.slice(0, 10) : ''}
+                                                        onChange={e => patchDraft(c.id, { expira_em: e.target.value ? new Date(`${e.target.value}T23:59:59`).toISOString() : null })}
+                                                    />
+                                                    <label className="ml-auto flex items-center gap-2 text-xs cursor-pointer">
+                                                        <input type="checkbox" className="accent-red-500" checked={enr.bloqueado} onChange={e => patchDraft(c.id, { bloqueado: e.target.checked })} />
+                                                        <span className={enr.bloqueado ? 'text-red-400 font-semibold' : 'text-text-muted'}>Bloquear acesso</span>
+                                                    </label>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            <p className="text-[10px] text-text-muted italic">Alterações valem só para a demonstração (salvas neste navegador). "30 dias" conta a partir de hoje.</p>
+                            <div className="flex justify-end gap-3">
+                                <Button variant="ghost" onClick={() => setDemoEditing(null)}>Cancelar</Button>
+                                <Button onClick={saveDemoAccess}>Salvar acesso</Button>
+                            </div>
                         </CardContent>
                     </Card>
                 </div>

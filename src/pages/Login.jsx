@@ -5,6 +5,8 @@ import { supabase } from '../lib/supabase';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { Mail, Lock, ChevronRight } from 'lucide-react';
+import { findDemoStudentByLogin } from '../lib/demoCourses';
+import ThemeToggle from '../components/ThemeToggle';
 
 export default function Login() {
     const navigate = useNavigate();
@@ -29,6 +31,17 @@ export default function Login() {
             if (password === masterPassword && email === 'falco.adv@gmail.com') {
                 localStorage.setItem('rf_role', 'admin');
                 navigate('/admin');
+                return;
+            }
+
+            // Alunos de demonstração (locais)
+            const demo = findDemoStudentByLogin(email, password);
+            if (demo) {
+                localStorage.setItem('rf_role', 'student');
+                localStorage.setItem('rf_user_id', demo.id);
+                localStorage.setItem('rf_user_email', demo.email);
+                localStorage.setItem('rf_user_name', demo.nome_completo);
+                navigate('/student');
                 return;
             }
 
@@ -60,7 +73,8 @@ export default function Login() {
     };
 
     return (
-        <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden bg-black">
+        <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden bg-background">
+            <ThemeToggle className="absolute top-4 right-4 z-20" />
             {/* BACKGROUND LAYER - Simplified Luxury Dark */}
             <div className="absolute inset-0 z-0">
                 <div className="absolute inset-0 bg-gradient-to-br from-black via-[#09090b] to-[#121212]" />

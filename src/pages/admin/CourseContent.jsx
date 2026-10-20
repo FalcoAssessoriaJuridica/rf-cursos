@@ -287,7 +287,7 @@ export default function CourseContent() {
                         <div className="flex items-center gap-2 group">
                             <button
                                 onClick={() => toggleModule(mod.id)}
-                                className="flex-1 flex items-center gap-3 p-4 bg-surface rounded-lg border border-border hover:border-primary/50 transition-all text-left"
+                                className="glass flex-1 flex items-center gap-3 p-4 rounded-lg hover:border-primary/50 transition-all text-left"
                             >
                                 {expandedModules.has(mod.id) ? <ChevronDown className="h-5 w-5 text-primary" /> : <ChevronRight className="h-5 w-5 text-text-muted" />}
                                 <span className="font-bold text-lg text-text flex-1">{mod.ordem}. {mod.titulo}</span>
@@ -425,7 +425,7 @@ export default function CourseContent() {
                                     <div className="space-y-1">
                                         <label className="text-xs text-text-muted uppercase font-bold tracking-wider">Provedor</label>
                                         <select
-                                            className="w-full bg-surface border border-border rounded-md h-10 px-3 text-sm"
+                                            className="w-full bg-black/20 backdrop-blur-md border border-border rounded-md h-10 px-3 text-sm"
                                             value={lessonForm.video_provider}
                                             onChange={e => setLessonForm({ ...lessonForm, video_provider: e.target.value })}
                                         >

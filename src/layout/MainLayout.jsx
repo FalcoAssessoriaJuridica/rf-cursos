@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LogOut, LayoutDashboard, Users, BookOpen } from 'lucide-react';
+import { LogOut, LayoutDashboard, Users, BookOpen, GraduationCap } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { Button } from '../components/Button';
+import ThemeToggle from '../components/ThemeToggle';
 
 export default function MainLayout({ isAdmin = false }) {
     const location = useLocation();
@@ -61,6 +62,7 @@ export default function MainLayout({ isAdmin = false }) {
             { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
             { href: '/admin/courses', label: 'Cursos', icon: BookOpen },
             { href: '/admin/students', label: 'Alunos', icon: Users },
+            { href: '/student', label: 'Área do Aluno', icon: GraduationCap },
         ]
         : [
             { href: '/student', label: 'Meus Cursos', icon: BookOpen },
@@ -129,6 +131,7 @@ export default function MainLayout({ isAdmin = false }) {
                         <p className="text-xs text-text-muted">Bem-vindo de volta!</p>
                     </div>
                     <div className="flex items-center gap-4">
+                        <ThemeToggle />
                         <div className="flex items-center gap-3 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full">
                             <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse" />
                             <span className="text-xs font-medium text-text-muted">Sistema Online</span>

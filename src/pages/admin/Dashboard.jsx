@@ -337,7 +337,7 @@ export default function Dashboard() {
             {/* Modal de Configurações */}
             {isSettingsModalOpen && (
                 <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-in fade-in duration-300">
-                    <Card className="w-full max-w-md border-primary/20 bg-surface shadow-2xl">
+                    <Card className="w-full max-w-md border-primary/20 shadow-2xl">
                         <CardHeader className="flex flex-row items-center justify-between border-b border-border/50 pb-4">
                             <CardTitle className="text-xl font-bold flex items-center gap-2">
                                 <Settings className="h-5 w-5 text-primary" />
@@ -399,7 +399,7 @@ export default function Dashboard() {
             {/* Modal de Exportação */}
             {isExportModalOpen && (
                 <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-in fade-in duration-300">
-                    <Card className="w-full max-w-md border-primary/20 bg-surface shadow-2xl">
+                    <Card className="w-full max-w-md border-primary/20 shadow-2xl">
                         <CardHeader className="flex flex-row items-center justify-between border-b border-border/50 pb-4">
                             <CardTitle className="text-xl font-bold flex items-center gap-2">
                                 <Download className="h-5 w-5 text-primary" />

@@ -3,6 +3,28 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { BookOpen, Clock, PlayCircle, Search, Star, Play } from 'lucide-react';
+import { DEMO_COURSES, readDemoProgress, demoAccessState, isDemoStudentId, accessLabel, withDemoCover } from '../../lib/demoCourses';
+import { coverStyle } from '../../lib/cover';
+import { canAccessStudentArea } from '../../lib/courseData';
+
+// Cursos de demonstração (locais) — admin vê todos; aluno demo vê os matriculados (inclusive
+// bloqueados/expirados, marcados no card); aluno real não vê demos.
+function buildDemoCourses() {
+    const demoProg = readDemoProgress();
+    return DEMO_COURSES.flatMap(c => {
+        const access = demoAccessState(c.id);
+        if (!access.ok && access.reason === 'sem_acesso') return [];
+        const aulas = c.modulos.flatMap(m => m.aulas);
+        const done = aulas.filter(a => demoProg[a.id]?.concluida).length;
+        return [{
+            ...withDemoCover({ id: c.id, capa_url: c.capa_url }),
+            id: c.id, titulo: c.titulo, descricao: c.descricao, is_demo: true,
+            access_reason: access.ok ? null : access.reason,
+            expira_em: access.expira_em || null,
+            progress_percent: aulas.length ? Math.round((done / aulas.length) * 100) : 0,
+        }];
+    });
+}
 
 export default function CourseList() {
     const navigate = useNavigate();
@@ -17,8 +39,13 @@ export default function CourseList() {
         async function fetchCourses() {
             try {
                 const userId = localStorage.getItem('rf_user_id');
-                if (!userId) {
+                if (!canAccessStudentArea()) {
                     navigate('/login');
+                    return;
+                }
+                // Admin sem matrícula ou aluno demo: só cursos demo (filtrados por acesso)
+                if (!userId || isDemoStudentId(userId)) {
+                    setCourses(buildDemoCourses());
                     return;
                 }
 
@@ -64,6 +91,7 @@ export default function CourseList() {
 
                         return {
                             ...course,
+                            expira_em: ins.data_expiracao || null,
                             progress_percent: percent
                         };
                     }) || [];
@@ -155,20 +183,18 @@ export default function CourseList() {
                         <motion.div
                             key={course.id}
                             variants={cardVariants}
-                            onClick={() => navigate(`/student/course/${course.id}/lesson/latest`)}
-                            className="group cursor-pointer perspective-1000"
+                            onClick={() => navigate(`/student/course/${course.id}`)}
+                            className={`group cursor-pointer perspective-1000 ${course.access_reason ? 'opacity-70 grayscale' : ''}`}
                         >
                             <div className="card-3d liquid-glass rounded-[2rem] overflow-hidden border-white/5 shadow-2xl transition-transform duration-500 hover:scale-[1.02] flex flex-col h-full">
                                 {/* COURSE IMAGE */}
-                                <div className="relative h-56 overflow-hidden">
+                                <div className="relative aspect-video overflow-hidden">
                                     {course.capa_url ? (
                                         <img
                                             src={course.capa_url}
                                             alt={course.titulo}
                                             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                            style={{
-                                                objectPosition: `${course.capa_posicao_x || 50}% ${course.capa_posicao_y || 50}%`
-                                            }}
+                                            style={coverStyle(course)}
                                         />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center bg-black/40">
@@ -180,7 +206,7 @@ export default function CourseList() {
                                     <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between text-white">
                                         <div className="flex items-center gap-1 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 text-[10px] font-black tracking-widest uppercase">
                                             <Star className="h-3 w-3 text-primary" />
-                                            <span>Premium Course</span>
+                                            <span>{course.access_reason === 'bloqueado' ? 'Bloqueado' : course.access_reason === 'expirado' ? 'Expirado' : course.is_demo ? 'Curso Demo' : 'Premium Course'}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -215,7 +241,7 @@ export default function CourseList() {
                                         <div className="flex items-center justify-between pt-2">
                                             <div className="flex items-center gap-2 text-white/40 text-[10px] font-bold tracking-widest uppercase">
                                                 <Clock className="h-4 w-4" />
-                                                <span>Acesso Vitalício</span>
+                                                <span>{course.access_reason === 'bloqueado' ? 'Bloqueado pelo suporte' : accessLabel(course.expira_em)}</span>
                                             </div>
                                             <div className="p-3 rounded-full bg-primary text-black scale-0 group-hover:scale-100 transition-transform duration-300 shadow-lg shadow-primary/20">
                                                 <PlayCircle className="h-5 w-5 fill-current" />
