@@ -11,41 +11,9 @@ import AccessBlocked from '../../components/AccessBlocked';
 import LessonThumb from '../../components/LessonThumb';
 import { KindIcon } from '../../components/MaterialUploader';
 import { downloadHref, fileKind, formatBytes, isStorageUrl } from '../../lib/materials';
+import { driveId, resolveMedia, isTimeTracked } from '../../lib/media';
 
 const FUNC_URL = 'https://bghvzdfikfhceekoxtxg.supabase.co/functions/v1/drive-proxy';
-const driveId = (url = '') =>
-    (url.match(/\/d\/([^/?#]+)/) || url.match(/[?&]id=([^&?#]+)/) || url.match(/\/file\/d\/([^/?#]+)/) || [])[1];
-
-// Decide como renderizar a aula: { kind: 'video' | 'iframe' | 'none', src }
-function resolveMedia(lesson, startTime = 0) {
-    if (lesson.url_video_drive) {
-        const id = driveId(lesson.url_video_drive);
-        return { kind: 'iframe', src: id ? `https://drive.google.com/file/d/${id}/preview` : lesson.url_video_drive };
-    }
-    const id = lesson.id_video_profissional;
-    if (!id) return { kind: 'none' };
-
-    if (/\.(mp4|webm|ogg|m3u8)(\?|$)/i.test(id)) return { kind: 'video', src: id };
-
-    if (id.includes('youtube.com') || id.includes('youtu.be')) {
-        const m = id.match(/[?&]v=([^&]+)/) || id.match(/youtu\.be\/([^?]+)/) || id.match(/embed\/([^?]+)/);
-        const ytId = m ? m[1] : id.split('/').pop();
-        return { kind: 'iframe', src: `https://www.youtube.com/embed/${ytId}?autoplay=1${startTime > 0 ? `&start=${startTime}` : ''}` };
-    }
-    if (id.includes('vimeo.com')) {
-        const m = id.match(/vimeo\.com\/(\d+)/) || id.match(/video\/(\d+)/);
-        const vId = m ? m[1] : id.split('/').pop();
-        return { kind: 'iframe', src: `https://player.vimeo.com/video/${vId}?autoplay=1${startTime > 0 ? `#t=${startTime}s` : ''}` };
-    }
-    if (id.includes('pandavideo.com.br')) {
-        const base = id.includes('embed') ? id : id.replace('app.pandavideo', 'player-vz-xxx.pandavideo');
-        let url = base.includes('?') ? `${base}&autoplay=true` : `${base}?autoplay=true`;
-        if (startTime > 0) url += `&t=${startTime}`;
-        return { kind: 'iframe', src: url };
-    }
-    return { kind: 'iframe', src: id };
-}
-
 export default function Player() {
     const { courseId, lessonId } = useParams();
     const navigate = useNavigate();
@@ -66,13 +34,17 @@ export default function Player() {
     const videoRef = useRef(null);
     const lastSaved = useRef(0);
 
-    // ── Carrega curso + progresso ──
+    // `navigate` muda a cada navegação; guardamos numa ref para o curso NÃO ser recarregado ao trocar de aula
+    const navigateRef = useRef(navigate);
+    navigateRef.current = navigate;
+
+    // ── Carrega curso + progresso (uma vez por curso/usuário) ──
     useEffect(() => {
         let alive = true;
         (async () => {
             try {
                 setLoading(true);
-                if (!canAccessStudentArea()) return navigate('/login');
+                if (!canAccessStudentArea()) return navigateRef.current('/login');
                 const data = await loadCourse(courseId, userId);
                 if (!alive) return;
                 if (data.blocked || data.notFound) { setBlocked({ reason: data.reason || 'sem_acesso', expira_em: data.expira_em }); return; }
@@ -87,7 +59,7 @@ export default function Player() {
             }
         })();
         return () => { alive = false; };
-    }, [courseId, userId, navigate]);
+    }, [courseId, userId]);
 
     const lessons = useMemo(() => flatLessons(modules), [modules]);
 
@@ -155,25 +127,6 @@ export default function Player() {
     };
     const onEnded = () => { if (lesson && !cur?.concluida) { patchProgress(lesson.id, { concluida: true, pct: 100 }); persist(lesson.id, { concluida: true, pct: 100 }); } };
     const onLoadedMetadata = (e) => { if (startSeconds > 0 && startSeconds < e.currentTarget.duration - 3) e.currentTarget.currentTime = startSeconds; };
-
-    // Aulas em iframe (YouTube/Drive etc.): progresso estimado, como antes
-    useEffect(() => {
-        if (!lesson || media.kind !== 'iframe' || cur?.concluida) return;
-        const t = setInterval(() => {
-            setProgress((prev) => {
-                const p = prev[lesson.id] || { concluida: false, pct: 0, seconds: 0 };
-                if (p.concluida || p.pct >= 95) return prev;
-                return { ...prev, [lesson.id]: { ...p, pct: p.pct + 1, seconds: p.seconds + 60 } };
-            });
-        }, 60000);
-        const s = setInterval(() => {
-            const p = progressRef.current[lesson.id];
-            if (p && !p.concluida) persist(lesson.id, { pct: p.pct, seconds: p.seconds });
-        }, 30000);
-        return () => { clearInterval(t); clearInterval(s); };
-    }, [lesson?.id, media.kind, cur?.concluida, persist]); // eslint-disable-line react-hooks/exhaustive-deps
-    const progressRef = useRef(progress);
-    useEffect(() => { progressRef.current = progress; }, [progress]);
 
     // ── Navegação ──
     const go = (aula) => aula && navigate(`/student/course/${courseId}/lesson/${aula.id}`);
@@ -324,6 +277,13 @@ export default function Player() {
                             )}
                         </div>
 
+                        {/* Vídeos de terceiros (Drive etc.) não informam o tempo assistido: a conclusão é manual */}
+                        {media.kind === 'iframe' && !cur?.concluida && (
+                            <p className="mt-3 text-xs text-text-muted">
+                                Ao terminar a aula, marque como concluída para atualizar o seu progresso.
+                            </p>
+                        )}
+
                         {/* Barra de ações */}
                         <div className="mt-3 flex flex-wrap items-center justify-end gap-4">
                             <div className="flex items-center gap-0.5" role="radiogroup" aria-label="Avaliar aula">
@@ -343,6 +303,15 @@ export default function Player() {
                                 {cur?.concluida ? 'Concluída' : 'Concluir'}
                                 <CheckCircle className="h-4 w-4" />
                             </button>
+                            {media.kind !== 'video' && !cur?.concluida && next && (
+                                <button
+                                    onClick={() => { toggleComplete(lesson); go(next); }}
+                                    className="bevel h-10 px-4 rounded-md bg-primary text-black text-sm font-semibold flex items-center gap-2 hover:bg-primary-hover transition-colors"
+                                >
+                                    Concluir e avançar
+                                    <ChevronRight className="h-4 w-4" />
+                                </button>
+                            )}
                         </div>
 
                         {/* Abas: informações / comentários */}
@@ -477,7 +446,7 @@ export default function Player() {
                                                             <div className="relative h-[54px] w-24 shrink-0 overflow-hidden rounded-md bg-panel">
                                                                 <LessonThumb aula={aula} course={course} />
                                                                 {active && <div className="absolute inset-0 bg-black/50 flex items-center justify-center"><Play className="h-5 w-5 fill-white text-white" /></div>}
-                                                                {p?.pct > 0 && !p.concluida && <div className="absolute bottom-0 inset-x-0 h-0.5 bg-white/20"><div className="h-full bg-primary" style={{ width: `${p.pct}%` }} /></div>}
+                                                                {p?.pct > 0 && !p.concluida && isTimeTracked(aula) && <div className="absolute bottom-0 inset-x-0 h-0.5 bg-white/20"><div className="h-full bg-primary" style={{ width: `${p.pct}%` }} /></div>}
                                                             </div>
                                                             <div className="min-w-0">
                                                                 {active && <p className="text-[11px] font-semibold text-primary">Tocando agora</p>}

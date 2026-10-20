@@ -7,6 +7,7 @@ import { cn } from '../../lib/utils';
 import AccessBlocked from '../../components/AccessBlocked';
 import { coverStyle } from '../../lib/cover';
 import LessonThumb from '../../components/LessonThumb';
+import { isTimeTracked } from '../../lib/media';
 
 export default function CourseDetail() {
     const { courseId } = useParams();
@@ -185,7 +186,7 @@ export default function CourseDetail() {
                                                                 {aula.duracao > 0 && (
                                                                     <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-semibold">{formatDuration(aula.duracao)}</span>
                                                                 )}
-                                                                {p?.pct > 0 && !p.concluida && (
+                                                                {p?.pct > 0 && !p.concluida && isTimeTracked(aula) && (
                                                                     <div className="absolute bottom-0 inset-x-0 h-1 bg-white/20"><div className="h-full bg-primary" style={{ width: `${p.pct}%` }} /></div>
                                                                 )}
                                                             </div>
