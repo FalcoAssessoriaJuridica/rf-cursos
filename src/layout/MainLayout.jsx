@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LogOut, LayoutDashboard, Users, BookOpen, GraduationCap } from 'lucide-react';
+import { LogOut, LayoutDashboard, Users, BookOpen, GraduationCap, ArrowLeft } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { Button } from '../components/Button';
 import ThemeToggle from '../components/ThemeToggle';
+import { DEMO_ENABLED } from '../lib/demoCourses';
 
 export default function MainLayout({ isAdmin = false }) {
     const location = useLocation();
@@ -54,7 +55,23 @@ export default function MainLayout({ isAdmin = false }) {
         localStorage.removeItem('rf_user_id');
         localStorage.removeItem('rf_user_email');
         localStorage.removeItem('rf_user_name');
+        localStorage.removeItem('rf_return_admin');
         navigate('/login');
+    };
+
+    // Admin visualizando a área do aluno (direto ou "entrando como" um aluno demo) precisa de um caminho de volta
+    const canReturnToAdmin = !isAdmin && (localStorage.getItem('rf_role') === 'admin' || (DEMO_ENABLED && localStorage.getItem('rf_return_admin') === '1'));
+
+    const returnToAdmin = () => {
+        // se entrou como aluno demo, restaura a sessão de admin
+        if (DEMO_ENABLED && localStorage.getItem('rf_return_admin') === '1') {
+            localStorage.setItem('rf_role', 'admin');
+            localStorage.removeItem('rf_user_id');
+            localStorage.removeItem('rf_user_email');
+            localStorage.removeItem('rf_user_name');
+            localStorage.removeItem('rf_return_admin');
+        }
+        navigate('/admin');
     };
 
     const navItems = isAdmin
@@ -84,6 +101,17 @@ export default function MainLayout({ isAdmin = false }) {
                 </div>
 
                 <nav className="flex-1 px-3 lg:px-4 mt-6 space-y-2">
+                    {canReturnToAdmin && (
+                        <button
+                            type="button"
+                            onClick={returnToAdmin}
+                            title="Voltar ao painel do administrador"
+                            className="bevel flex w-full items-center justify-center lg:justify-start px-3 py-3 text-sm font-semibold rounded-xl bg-primary text-black hover:bg-primary-hover transition-colors"
+                        >
+                            <ArrowLeft className="h-6 w-6 lg:mr-3" />
+                            <span className="hidden lg:inline">Painel Admin</span>
+                        </button>
+                    )}
                     {navItems.map((item) => {
                         const Icon = item.icon;
                         const isActive = location.pathname === item.href;

@@ -301,6 +301,7 @@ export default function Students() {
     });
 
     const impersonateDemo = (st) => {
+        localStorage.setItem('rf_return_admin', '1'); // permite voltar ao painel admin depois
         localStorage.setItem('rf_role', 'student');
         localStorage.setItem('rf_user_id', st.id);
         localStorage.setItem('rf_user_email', st.email);
