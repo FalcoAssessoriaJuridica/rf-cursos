@@ -52,6 +52,7 @@
             const pageElements = Array.from(document.body.children).filter(el => {
                 if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE') return false;
                 if (el.id && el.id.startsWith('falco-')) return false;
+                if (el.id === 'root') return false; // raiz do React: o app renderiza sozinho
                 return true;
             });
 
@@ -2274,6 +2275,7 @@
             const currentElements = Array.from(document.body.children).filter(el => {
                 if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE') return false;
                 if (el.id && el.id.startsWith('falco-')) return false;
+                if (el.id === 'root') return false; // raiz do React: o app renderiza sozinho
                 return true;
             });
 
@@ -2327,6 +2329,7 @@
             const pageElements = Array.from(document.body.children).filter(el => {
                 if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE') return false;
                 if (el.id && el.id.startsWith('falco-')) return false;
+                if (el.id === 'root') return false; // raiz do React: o app renderiza sozinho
                 return true;
             });
 
@@ -2372,9 +2375,22 @@
 
                 if (!Array.isArray(snapshot) || snapshot.length === 0) return;
 
+                // Snapshots antigos guardaram o HTML do #root (React). Restaurá-lo congela a interface na versão
+                // de quando foi salvo e esconde qualquer mudança nova. Descarta o snapshot inteiro.
+                if (snapshot.some(item => item && item.id === 'root')) {
+                    localStorage.removeItem(STORAGE_KEY);
+                    try {
+                        const db = await openDatabase();
+                        if (db) db.transaction(STORE_NAME, 'readwrite').objectStore(STORE_NAME).delete(STORAGE_KEY);
+                    } catch (e) { /* sem IndexedDB */ }
+                    console.warn('Falco Studio: snapshot antigo do #root descartado (impedia ver as alterações do app).');
+                    return;
+                }
+
                 const currentElements = Array.from(document.body.children).filter(el => {
                     if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE') return false;
                     if (el.id && el.id.startsWith('falco-')) return false;
+                if (el.id === 'root') return false; // raiz do React: o app renderiza sozinho
                     return true;
                 });
 
