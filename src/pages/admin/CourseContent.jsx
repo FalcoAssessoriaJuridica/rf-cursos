@@ -6,6 +6,9 @@ import { Input } from '../../components/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/Card';
 import { Plus, ChevronLeft, Pencil, Trash2, Video, List, X, GripVertical, ChevronDown, ChevronRight, Info, AlertTriangle, FileText, Headphones } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import MaterialUploader from '../../components/MaterialUploader';
+import LessonThumb from '../../components/LessonThumb';
+import { DOC_ACCEPT, AUDIO_ACCEPT, removeMaterialFile } from '../../lib/materials';
 
 export default function CourseContent() {
     const { courseId } = useParams();
@@ -78,7 +81,7 @@ export default function CourseContent() {
         try {
             setLoading(true);
             // Fetch Course
-            const { data: cData } = await supabase.from('cursos').select('titulo').eq('id', courseId).single();
+            const { data: cData } = await supabase.from('cursos').select('*').eq('id', courseId).single();
             setCourse(cData);
 
             // Fetch Modules and Lessons
@@ -169,7 +172,12 @@ export default function CourseContent() {
     };
 
     // --- Lesson Actions ---
+    // Arquivos enviados no Storage só são apagados ao salvar (removidos da aula) ou ao cancelar (enviados e não salvos)
+    const [originalItems, setOriginalItems] = useState([]); // materiais da aula ao abrir o modal
+    const pathsOf = (form) => [...form.materiais_pdf, ...form.materiais_audio].filter((m) => m.path);
+
     const openLessonModal = (modId, lesson = null) => {
+        setOriginalItems([...(lesson?.materiais_pdf || []), ...(lesson?.materiais_audio || [])].filter((m) => m.path));
         setActiveModuleId(modId);
         if (lesson) {
             setEditingLesson(lesson.id);
@@ -212,15 +220,20 @@ export default function CourseContent() {
                 // If it's drive, fill url_video_drive, else id_video_profissional
                 url_video_drive: lessonForm.video_provider === 'google_drive' ? lessonForm.video_id : null,
                 id_video_profissional: lessonForm.video_provider !== 'google_drive' ? lessonForm.video_id : null,
-                materiais_pdf: lessonForm.materiais_pdf,
-                materiais_audio: lessonForm.materiais_audio,
+                // descarta linhas de link vazias
+                materiais_pdf: lessonForm.materiais_pdf.filter((m) => m.url),
+                materiais_audio: lessonForm.materiais_audio.filter((m) => m.url),
             };
 
-            if (editingLesson) {
-                await supabase.from('aulas').update(payload).eq('id', editingLesson);
-            } else {
-                await supabase.from('aulas').insert([{ ...payload, modulo_id: activeModuleId }]);
-            }
+            const query = editingLesson
+                ? supabase.from('aulas').update(payload).eq('id', editingLesson)
+                : supabase.from('aulas').insert([{ ...payload, modulo_id: activeModuleId }]);
+            const { error: saveError } = await query;
+            if (saveError) throw saveError;
+
+            // aula salva: apaga do Storage o que foi retirado dela
+            const keep = new Set(pathsOf(payload).map((m) => m.path));
+            await Promise.all(originalItems.filter((m) => !keep.has(m.path)).map(removeMaterialFile));
             setIsLessonModalOpen(false);
             fetchCourseData();
         } catch (err) {
@@ -308,36 +321,50 @@ export default function CourseContent() {
 
                         {expandedModules.has(mod.id) && (
                             <div className="ml-8 space-y-2 border-l-2 border-primary/20 pl-4 py-2">
-                                {mod.aulas?.map((lesson) => (
-                                    <div
-                                        key={lesson.id}
-                                        className="flex items-center gap-3 p-3 bg-black/20 rounded-md border border-border/50 group/lesson cursor-pointer hover:bg-black/30 transition-all"
-                                        onClick={() => openLessonModal(mod.id, lesson)}
-                                    >
-                                        <div className="h-8 w-8 bg-primary/10 rounded flex items-center justify-center">
-                                            <Video className="h-4 w-4 text-primary" />
+                                {mod.aulas?.map((lesson) => {
+                                    const docs = (lesson.materiais_pdf?.length || 0) + (lesson.materiais_audio?.length || 0);
+                                    return (
+                                        <div
+                                            key={lesson.id}
+                                            className="glass glass-hover group/lesson flex cursor-pointer items-center gap-4 rounded-xl p-2"
+                                            onClick={() => openLessonModal(mod.id, lesson)}
+                                        >
+                                            <div className="h-[60px] w-28 shrink-0 overflow-hidden rounded-md md:h-[72px] md:w-32">
+                                                <LessonThumb aula={lesson} course={course} />
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="truncate text-sm font-semibold text-text">{lesson.ordem}. {lesson.titulo}</p>
+                                                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                                    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-black/20 px-2 py-0.5 text-[10px] uppercase tracking-wider text-text-muted">
+                                                        <Video className="h-3 w-3" />
+                                                        {lesson.url_video_drive ? 'Google Drive' : (lesson.id_video_profissional ? (lesson.video_provider || 'Vídeo Pro') : 'Sem vídeo')}
+                                                    </span>
+                                                    {docs > 0 && (
+                                                        <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                                                            <FileText className="h-3 w-3" /> {docs} material(is)
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                                                <Button
+                                                    variant="secondary"
+                                                    size="sm"
+                                                    className="h-8 px-3 text-[10px] font-bold uppercase tracking-wider"
+                                                    onClick={() => navigate(`/student/course/${courseId}/lesson/${lesson.id}`)}
+                                                >
+                                                    Visualizar
+                                                </Button>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8" title="Editar aula" onClick={() => openLessonModal(mod.id, lesson)}>
+                                                    <Pencil className="h-4 w-4" />
+                                                </Button>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={(e) => handleDeleteLessonClick(e, lesson)}>
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
                                         </div>
-                                        <div className="flex-1">
-                                            <p className="text-sm font-medium text-text">{lesson.ordem}. {lesson.titulo}</p>
-                                            <p className="text-[10px] text-text-muted uppercase tracking-wider">
-                                                {lesson.url_video_drive ? 'Google Drive' : (lesson.video_provider || 'Vídeo Pro')}
-                                            </p>
-                                        </div>
-                                        <div className="flex gap-1 items-center" onClick={e => e.stopPropagation()}>
-                                            <Button
-                                                variant="secondary"
-                                                size="sm"
-                                                className="h-8 px-3 text-[10px] font-bold uppercase tracking-wider"
-                                                onClick={() => navigate(`/student/course/${courseId}/lesson/${lesson.id}`)}
-                                            >
-                                                Visualizar
-                                            </Button>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={(e) => handleDeleteLessonClick(e, lesson)}>
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                                 <button
                                     onClick={() => openLessonModal(mod.id)}
                                     className="flex items-center gap-2 p-3 w-full border border-dashed border-border rounded-md text-sm text-text-muted hover:text-primary hover:border-primary/50 transition-all justify-center"
@@ -447,143 +474,33 @@ export default function CourseContent() {
                                     <Input type="number" required value={lessonForm.ordem} onChange={e => setLessonForm({ ...lessonForm, ordem: parseInt(e.target.value) })} />
                                 </div>
 
-                                {/* Seção de Materiais PDF */}
-                                <div className="space-y-3 p-4 bg-black/20 rounded-lg border border-border/50">
-                                    <div className="flex items-center justify-between">
-                                        <label className="text-xs text-primary uppercase font-bold tracking-wider flex items-center gap-2">
-                                            <FileText className="h-4 w-4" /> Materiais PDF
-                                        </label>
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-7 text-[10px]"
-                                            onClick={() => setLessonForm({
-                                                ...lessonForm,
-                                                materiais_pdf: [...lessonForm.materiais_pdf, { nome: '', url: '' }]
-                                            })}
-                                        >
-                                            <Plus className="h-3 w-3 mr-1" /> Adicionar PDF
-                                        </Button>
-                                    </div>
+                                <MaterialUploader
+                                    title="Documentos e materiais"
+                                    icon={FileText}
+                                    items={lessonForm.materiais_pdf}
+                                    onChange={(list) => setLessonForm({ ...lessonForm, materiais_pdf: list })}
+                                    accept={DOC_ACCEPT}
+                                    courseId={courseId}
+                                    lessonId={editingLesson}
+                                    hint="PDF, DOCX, XLSX, PPTX, ZIP e outros"
+                                />
 
-                                    {lessonForm.materiais_pdf.length === 0 && (
-                                        <p className="text-[10px] text-text-muted italic">Nenhum PDF anexado.</p>
-                                    )}
-
-                                    {lessonForm.materiais_pdf.map((pdf, idx) => (
-                                        <div key={idx} className="grid grid-cols-12 gap-2 items-end">
-                                            <div className="col-span-5 space-y-1">
-                                                <label className="text-[9px] text-text-muted uppercase">Nome Exibição</label>
-                                                <Input
-                                                    placeholder="Ex: Partitura Aula 01"
-                                                    value={pdf.nome}
-                                                    onChange={e => {
-                                                        const newList = [...lessonForm.materiais_pdf];
-                                                        newList[idx].nome = e.target.value;
-                                                        setLessonForm({ ...lessonForm, materiais_pdf: newList });
-                                                    }}
-                                                />
-                                            </div>
-                                            <div className="col-span-6 space-y-1">
-                                                <label className="text-[9px] text-text-muted uppercase">Link Drive</label>
-                                                <Input
-                                                    placeholder="URL do PDF..."
-                                                    value={pdf.url}
-                                                    onChange={e => {
-                                                        const newList = [...lessonForm.materiais_pdf];
-                                                        newList[idx].url = e.target.value;
-                                                        setLessonForm({ ...lessonForm, materiais_pdf: newList });
-                                                    }}
-                                                />
-                                            </div>
-                                            <div className="col-span-1 pb-1">
-                                                <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-9 w-9 text-red-500 hover:bg-red-500/10"
-                                                    onClick={() => {
-                                                        const newList = lessonForm.materiais_pdf.filter((_, i) => i !== idx);
-                                                        setLessonForm({ ...lessonForm, materiais_pdf: newList });
-                                                    }}
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Seção de Materiais Áudio */}
-                                <div className="space-y-3 p-4 bg-black/20 rounded-lg border border-border/50">
-                                    <div className="flex items-center justify-between">
-                                        <label className="text-xs text-primary uppercase font-bold tracking-wider flex items-center gap-2">
-                                            <Headphones className="h-4 w-4" /> Materiais de Áudio
-                                        </label>
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-7 text-[10px]"
-                                            onClick={() => setLessonForm({
-                                                ...lessonForm,
-                                                materiais_audio: [...lessonForm.materiais_audio, { nome: '', url: '' }]
-                                            })}
-                                        >
-                                            <Plus className="h-3 w-3 mr-1" /> Adicionar Áudio
-                                        </Button>
-                                    </div>
-
-                                    {lessonForm.materiais_audio.length === 0 && (
-                                        <p className="text-[10px] text-text-muted italic">Nenhum áudio anexado.</p>
-                                    )}
-
-                                    {lessonForm.materiais_audio.map((audio, idx) => (
-                                        <div key={idx} className="grid grid-cols-12 gap-2 items-end">
-                                            <div className="col-span-5 space-y-1">
-                                                <label className="text-[9px] text-text-muted uppercase">Nome Exibição</label>
-                                                <Input
-                                                    placeholder="Ex: Playalong - Lento"
-                                                    value={audio.nome}
-                                                    onChange={e => {
-                                                        const newList = [...lessonForm.materiais_audio];
-                                                        newList[idx].nome = e.target.value;
-                                                        setLessonForm({ ...lessonForm, materiais_audio: newList });
-                                                    }}
-                                                />
-                                            </div>
-                                            <div className="col-span-6 space-y-1">
-                                                <label className="text-[9px] text-text-muted uppercase">Link Drive</label>
-                                                <Input
-                                                    placeholder="URL do Áudio..."
-                                                    value={audio.url}
-                                                    onChange={e => {
-                                                        const newList = [...lessonForm.materiais_audio];
-                                                        newList[idx].url = e.target.value;
-                                                        setLessonForm({ ...lessonForm, materiais_audio: newList });
-                                                    }}
-                                                />
-                                            </div>
-                                            <div className="col-span-1 pb-1">
-                                                <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-9 w-9 text-red-500 hover:bg-red-500/10"
-                                                    onClick={() => {
-                                                        const newList = lessonForm.materiais_audio.filter((_, i) => i !== idx);
-                                                        setLessonForm({ ...lessonForm, materiais_audio: newList });
-                                                    }}
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
+                                <MaterialUploader
+                                    title="Materiais de áudio"
+                                    icon={Headphones}
+                                    items={lessonForm.materiais_audio}
+                                    onChange={(list) => setLessonForm({ ...lessonForm, materiais_audio: list })}
+                                    accept={AUDIO_ACCEPT}
+                                    courseId={courseId}
+                                    lessonId={editingLesson}
+                                    hint="MP3, M4A, WAV, OGG"
+                                />
                                 <div className="flex justify-end gap-3 pt-4">
-                                    <Button variant="ghost" type="button" onClick={() => setIsLessonModalOpen(false)}>Cancelar</Button>
+                                    <Button variant="ghost" type="button" onClick={() => {
+                                        // descarta uploads feitos nesta edição e não salvos
+                                        pathsOf(lessonForm).filter((m) => !originalItems.some((o) => o.path === m.path)).forEach(removeMaterialFile);
+                                        setIsLessonModalOpen(false);
+                                    }}>Cancelar</Button>
                                     <Button type="submit">Salvar Aula</Button>
                                 </div>
                             </form>

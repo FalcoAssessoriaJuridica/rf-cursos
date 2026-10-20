@@ -116,6 +116,17 @@ create policy covers_admin_update on storage.objects for update to authenticated
 create policy covers_admin_delete on storage.objects for delete to authenticated
   using (bucket_id = 'course-covers' and public.is_admin());
 
+-- Materiais de aula (bucket criado em 0000_storage_course_materials.sql): leitura pública, escrita só admin
+drop policy if exists materials_insert on storage.objects;
+drop policy if exists materials_update on storage.objects;
+drop policy if exists materials_delete on storage.objects;
+create policy materials_admin_insert on storage.objects for insert to authenticated
+  with check (bucket_id = 'course-materials' and public.is_admin());
+create policy materials_admin_update on storage.objects for update to authenticated
+  using (bucket_id = 'course-materials' and public.is_admin());
+create policy materials_admin_delete on storage.objects for delete to authenticated
+  using (bucket_id = 'course-materials' and public.is_admin());
+
 -- ── 4. TRANSITÓRIO: políticas legacy para `anon` (app atual segue igual até o cutover) ──────
 -- Removidas em 0002. Enquanto existirem, a segurança AINDA NÃO está ativa.
 

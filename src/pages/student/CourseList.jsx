@@ -43,9 +43,22 @@ export default function CourseList() {
                     navigate('/login');
                     return;
                 }
-                // Admin sem matrícula ou aluno demo: só cursos demo (filtrados por acesso)
-                if (!userId || isDemoStudentId(userId)) {
+                // Aluno demo: só os cursos demo em que está matriculado
+                if (userId && isDemoStudentId(userId)) {
                     setCourses(buildDemoCourses());
+                    return;
+                }
+
+                // Admin (sem matrícula): vê TODOS os cursos reais, como pré-visualização, mais os demo
+                if (!userId) {
+                    let real = [];
+                    try {
+                        const { data: cursos } = await supabase.from('cursos').select('*').order('titulo');
+                        real = (cursos || []).map(c => ({ ...c, expira_em: null, progress_percent: 0 }));
+                    } catch (err) {
+                        console.error('Error fetching courses (admin):', err);
+                    }
+                    setCourses([...real, ...buildDemoCourses()]);
                     return;
                 }
 

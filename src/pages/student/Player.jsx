@@ -9,6 +9,8 @@ import { formatDuration } from '../../lib/demoCourses';
 import { cn } from '../../lib/utils';
 import AccessBlocked from '../../components/AccessBlocked';
 import LessonThumb from '../../components/LessonThumb';
+import { KindIcon } from '../../components/MaterialUploader';
+import { downloadHref, fileKind, formatBytes, isStorageUrl } from '../../lib/materials';
 
 const FUNC_URL = 'https://bghvzdfikfhceekoxtxg.supabase.co/functions/v1/drive-proxy';
 const driveId = (url = '') =>
@@ -179,10 +181,20 @@ export default function Player() {
     const next = lessonIdx >= 0 && lessonIdx < lessons.length - 1 ? lessons[lessonIdx + 1] : null;
 
     // ── Downloads (PDF/Áudio) ──
-    const handleDownload = async (url, filename, type = 'pdf') => {
+    const handleDownload = async (url, filename, type = 'pdf', item = null) => {
         if (isDownloading[url]) return;
         try {
             setIsDownloading((p) => ({ ...p, [url]: true }));
+            // Arquivo enviado ao Storage: download direto, com o nome e a extensão originais
+            if (isStorageUrl(url)) {
+                const a = document.createElement('a');
+                a.href = downloadHref(item || { url, nome: filename });
+                a.rel = 'noopener';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                return;
+            }
             const id = driveId(url);
             if (!id) { window.open(url, '_blank'); return; }
             const ext = type === 'audio' ? '.mp3' : '.pdf';
@@ -353,19 +365,22 @@ export default function Player() {
                                     <div className="space-y-3">
                                         <h3 className="text-sm font-semibold flex items-center gap-2"><FileText className="h-4 w-4 text-primary" /> Materiais da aula</h3>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                            {lesson.materiais_pdf?.map((pdf, i) => (
-                                                <button key={`pdf-${i}`} onClick={() => handleDownload(pdf.url, pdf.nome, 'pdf')} disabled={isDownloading[pdf.url]}
-                                                    className="flex items-center gap-3 p-3 rounded-lg border border-white/10 hover:border-primary/40 hover:bg-primary/5 transition-all text-left">
-                                                    <div className="h-10 w-10 bg-red-500/10 rounded-lg flex items-center justify-center shrink-0">
-                                                        {isDownloading[pdf.url] ? <Loader2 className="h-5 w-5 text-red-500 animate-spin" /> : <FileText className="h-5 w-5 text-red-400" />}
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="text-xs font-bold truncate">{pdf.nome || 'Material PDF'}</p>
-                                                        <p className="text-[10px] text-text-muted uppercase tracking-tighter">{isDownloading[pdf.url] ? 'Preparando arquivo...' : 'Baixar Partitura (PDF)'}</p>
-                                                    </div>
-                                                    {!isDownloading[pdf.url] && <Download className="h-4 w-4 text-text-muted shrink-0" />}
-                                                </button>
-                                            ))}
+                                            {lesson.materiais_pdf?.map((pdf, i) => {
+                                                const kind = fileKind(pdf);
+                                                return (
+                                                    <button key={`pdf-${i}`} onClick={() => handleDownload(pdf.url, pdf.nome, 'pdf', pdf)} disabled={isDownloading[pdf.url]}
+                                                        className="flex items-center gap-3 p-3 rounded-lg border border-white/10 hover:border-primary/40 hover:bg-primary/5 transition-all text-left">
+                                                        {isDownloading[pdf.url] ? <div className="h-10 w-10 flex items-center justify-center shrink-0"><Loader2 className="h-5 w-5 text-primary animate-spin" /></div> : <KindIcon item={pdf} />}
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-xs font-bold truncate">{pdf.nome || pdf.arquivo || 'Material'}</p>
+                                                            <p className="text-[10px] text-text-muted uppercase tracking-tighter">
+                                                                {isDownloading[pdf.url] ? 'Preparando arquivo...' : `Baixar ${kind.label}${pdf.tamanho ? ` · ${formatBytes(pdf.tamanho)}` : ''}`}
+                                                            </p>
+                                                        </div>
+                                                        {!isDownloading[pdf.url] && <Download className="h-4 w-4 text-text-muted shrink-0" />}
+                                                    </button>
+                                                );
+                                            })}
                                             {lesson.materiais_audio?.map((audio, i) => (
                                                 <div key={`audio-${i}`} className="flex flex-col gap-2 p-3 rounded-lg border border-white/10">
                                                     <div className="flex items-center gap-3">
@@ -376,7 +391,7 @@ export default function Player() {
                                                             <p className="text-xs font-bold truncate">{audio.nome || 'Material de Áudio'}</p>
                                                             <p className="text-[10px] text-text-muted uppercase tracking-tighter">Ouvir agora</p>
                                                         </div>
-                                                        <button onClick={() => handleDownload(audio.url, audio.nome, 'audio')} disabled={isDownloading[audio.url]} className="p-2 hover:bg-white/10 rounded-full shrink-0" title="Baixar Áudio">
+                                                        <button onClick={() => handleDownload(audio.url, audio.nome, 'audio', audio)} disabled={isDownloading[audio.url]} className="p-2 hover:bg-white/10 rounded-full shrink-0" title="Baixar Áudio">
                                                             <Download className="h-4 w-4 text-text-muted" />
                                                         </button>
                                                     </div>
