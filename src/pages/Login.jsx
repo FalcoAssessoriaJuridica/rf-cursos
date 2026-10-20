@@ -7,6 +7,7 @@ import { Input } from '../components/Input';
 import { Mail, Lock, ChevronRight } from 'lucide-react';
 import { findDemoStudentByLogin } from '../lib/demoCourses';
 import ThemeToggle from '../components/ThemeToggle';
+import { verifyAdminPassword } from '../lib/adminAuth';
 
 export default function Login() {
     const navigate = useNavigate();
@@ -26,9 +27,7 @@ export default function Login() {
         setError('');
 
         try {
-            const masterPassword = import.meta.env.VITE_ADMIN_MASTER_PASSWORD || 'admin';
-
-            if (password === masterPassword && email === 'falco.adv@gmail.com') {
+            if (email === 'falco.adv@gmail.com' && (await verifyAdminPassword(password))) {
                 localStorage.setItem('rf_role', 'admin');
                 navigate('/admin');
                 return;

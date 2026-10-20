@@ -15,7 +15,10 @@ const aula = (id, modulo_id, ordem, titulo, duracao, thumb, extra = {}) => ({
     ...extra,
 });
 
-export const DEMO_COURSES = [
+// Conteúdo de demonstração só existe quando o modo demo está ligado (ver vite.config.js).
+export const DEMO_ENABLED = __DEMO_ENABLED__;
+
+const RAW_DEMO_COURSES = [
     {
         id: 'demo-lideranca',
         titulo: 'Liderança & Presença Executiva',
@@ -116,6 +119,8 @@ export const DEMO_COURSES = [
     },
 ];
 
+export const DEMO_COURSES = DEMO_ENABLED ? RAW_DEMO_COURSES : [];
+
 // ---- Enquadramento de capa dos cursos demo (editável pelo admin, salvo no navegador) ----
 const COVER_KEY = 'rf_demo_covers';
 
@@ -144,11 +149,11 @@ export const isDemoId = (id) => typeof id === 'string' && id.startsWith('demo-')
 export const getDemoCourse = (id) => DEMO_COURSES.find((c) => c.id === id) || null;
 
 // ---- Alunos demo (login local; senha única para teste) ----
-export const DEMO_PASSWORD = 'demo123';
+export const DEMO_PASSWORD = DEMO_ENABLED ? 'demo123' : '';
 
 // `cursos`: id simples = acesso vitalício. Objeto = { curso_id, dias (expira em N dias a partir de hoje), bloqueado }.
 // Os estados abaixo servem para testar expiração e bloqueio manual logo de início.
-export const DEMO_STUDENTS = [
+const RAW_DEMO_STUDENTS = [
     { id: 'demo-aluno-1', nome_completo: 'Ana Beatriz Souza', email: 'ana.demo@rfcursos.test', cursos: ['demo-lideranca'] },
     { id: 'demo-aluno-2', nome_completo: 'Bruno Carvalho', email: 'bruno.demo@rfcursos.test', cursos: ['demo-lideranca', 'demo-imagem'] },
     { id: 'demo-aluno-3', nome_completo: 'Carla Menezes', email: 'carla.demo@rfcursos.test', cursos: ['demo-lideranca', 'demo-imagem', 'demo-curso-curto'] },
@@ -157,11 +162,13 @@ export const DEMO_STUDENTS = [
     { id: 'demo-aluno-6', nome_completo: 'Fábio Nogueira', email: 'fabio.demo@rfcursos.test', cursos: [{ curso_id: 'demo-curso-curto', bloqueado: true }] },
 ];
 
+export const DEMO_STUDENTS = DEMO_ENABLED ? RAW_DEMO_STUDENTS : [];
+
 export const isDemoStudentId = (id) => typeof id === 'string' && id.startsWith('demo-aluno-');
 
 export const findDemoStudentByLogin = (email, senha) => {
     const student = DEMO_STUDENTS.find((s) => s.email === String(email).trim().toLowerCase());
-    return student && senha === DEMO_PASSWORD ? student : null;
+    return DEMO_ENABLED && student && senha === DEMO_PASSWORD ? student : null;
 };
 
 // ---- Expiração e bloqueio ----

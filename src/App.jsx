@@ -11,18 +11,23 @@ import CourseList from './pages/student/CourseList';
 import Player from './pages/student/Player';
 import CourseDetail from './pages/student/CourseDetail';
 
-// Admin Guard (placeholder - implementation depends on auth logic details)
-const AdminRoute = ({ children }) => {
-  // TODO: Add real auth check
-  const isAuthenticated = true;
-  return isAuthenticated ? children : <Navigate to="/login" />;
+// Guardas de rota. Valem para a interface: a sessão fica no localStorage, então a proteção
+// dos dados em si precisa ser feita no servidor (regras/RLS do Supabase).
+const getRole = () => {
+  try {
+    return localStorage.getItem('rf_role');
+  } catch {
+    return null;
+  }
 };
 
-// Student Guard
+const AdminRoute = ({ children }) => (getRole() === 'admin' ? children : <Navigate to="/login" replace />);
+
+// Aluno logado (rf_user_id) ou admin pré-visualizando a área do aluno
 const StudentRoute = ({ children }) => {
-  // TODO: Add real auth check
-  const isAuthenticated = true;
-  return isAuthenticated ? children : <Navigate to="/login" />;
+  const role = getRole();
+  const hasStudent = role === 'student' && !!localStorage.getItem('rf_user_id');
+  return hasStudent || role === 'admin' ? children : <Navigate to="/login" replace />;
 };
 
 class ErrorBoundary extends React.Component {
@@ -62,7 +67,7 @@ function App() {
           </Route>
 
           {/* Admin Routes */}
-          <Route path="/admin" element={<MainLayout isAdmin={true} />}>
+          <Route path="/admin" element={<AdminRoute><MainLayout isAdmin={true} /></AdminRoute>}>
             <Route index element={<Dashboard />} />
             <Route path="students" element={<Students />} />
             <Route path="courses" element={<Courses />} />
@@ -70,7 +75,7 @@ function App() {
           </Route>
 
           {/* Student Routes */}
-          <Route path="/student" element={<MainLayout isAdmin={false} />}>
+          <Route path="/student" element={<StudentRoute><MainLayout isAdmin={false} /></StudentRoute>}>
             <Route index element={<CourseList />} />
             <Route path="course/:courseId" element={<CourseDetail />} />
             <Route path="course/:courseId/lesson/:lessonId" element={<Player />} />
