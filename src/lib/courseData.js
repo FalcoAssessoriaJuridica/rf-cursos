@@ -18,17 +18,22 @@ export async function loadCourse(courseId, userId) {
         return { course: withDemoCover(course), modules, progress, blocked: false };
     }
 
-    const { data: inscription } = await supabase
+    // Admin sem matrícula pré-visualiza qualquer curso real (sem gravar progresso)
+    const adminPreview = !userId && localStorage.getItem('rf_role') === 'admin';
+
+    const { data: inscription } = adminPreview ? { data: null } : await supabase
         .from('inscricoes')
         .select('*')
         .eq('curso_id', courseId)
         .eq('perfil_id', userId)
         .single();
 
-    if (!inscription) return { blocked: true, reason: 'sem_acesso' };
-    const exp = inscription.data_expiracao ? new Date(inscription.data_expiracao) : null;
-    if (inscription.status === 'bloqueado') return { blocked: true, reason: 'bloqueado' };
-    if (exp && exp < new Date()) return { blocked: true, reason: 'expirado', expira_em: inscription.data_expiracao };
+    if (!adminPreview) {
+        if (!inscription) return { blocked: true, reason: 'sem_acesso' };
+        const exp = inscription.data_expiracao ? new Date(inscription.data_expiracao) : null;
+        if (inscription.status === 'bloqueado') return { blocked: true, reason: 'bloqueado' };
+        if (exp && exp < new Date()) return { blocked: true, reason: 'expirado', expira_em: inscription.data_expiracao };
+    }
 
     const { data: modulesData } = await supabase
         .from('modulos')
@@ -42,7 +47,7 @@ export async function loadCourse(courseId, userId) {
     }));
     const course = modulesData?.[0]?.cursos || null;
 
-    const { data: allProg } = await supabase
+    const { data: allProg } = adminPreview ? { data: [] } : await supabase
         .from('progresso')
         .select('aula_id, concluida, porcentagem_concluida, segundos_assistidos')
         .eq('perfil_id', userId);

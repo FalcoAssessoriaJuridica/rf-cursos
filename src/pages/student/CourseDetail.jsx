@@ -6,6 +6,7 @@ import { formatDuration } from '../../lib/demoCourses';
 import { cn } from '../../lib/utils';
 import AccessBlocked from '../../components/AccessBlocked';
 import { coverStyle } from '../../lib/cover';
+import LessonThumb from '../../components/LessonThumb';
 
 export default function CourseDetail() {
     const { courseId } = useParams();
@@ -177,11 +178,7 @@ export default function CourseDetail() {
                                                     <li key={aula.id}>
                                                         <button onClick={() => open(aula)} className="group w-full flex items-center gap-4 rounded-lg p-2 text-left hover:bg-white/5 transition-colors">
                                                             <div className="relative h-[72px] w-32 md:h-20 md:w-36 shrink-0 overflow-hidden rounded-md bg-panel">
-                                                                {aula.thumb ? (
-                                                                    <img src={aula.thumb} alt="" className="h-full w-full object-cover" loading="lazy" />
-                                                                ) : (
-                                                                    <div className="h-full w-full flex items-center justify-center"><Play className="h-6 w-6 text-white/30" /></div>
-                                                                )}
+                                                                <LessonThumb aula={aula} course={course} />
                                                                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
                                                                     <Play className="h-6 w-6 fill-white text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                                                                 </div>

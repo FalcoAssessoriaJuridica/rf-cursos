@@ -266,6 +266,9 @@ export default function CourseContent() {
                     </h2>
                     <p className="text-text-muted">Módulos e Aulas do curso.</p>
                 </div>
+                <Button variant="secondary" className="ml-auto" onClick={() => navigate(`/student/course/${courseId}`)}>
+                    Ver como aluno
+                </Button>
             </div>
 
             <div className="flex justify-end">
@@ -325,10 +328,7 @@ export default function CourseContent() {
                                                 variant="secondary"
                                                 size="sm"
                                                 className="h-8 px-3 text-[10px] font-bold uppercase tracking-wider"
-                                                onClick={() => {
-                                                    setPreviewLesson(lesson);
-                                                    setIsPreviewModalOpen(true);
-                                                }}
+                                                onClick={() => navigate(`/student/course/${courseId}/lesson/${lesson.id}`)}
                                             >
                                                 Visualizar
                                             </Button>

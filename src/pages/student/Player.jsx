@@ -8,6 +8,7 @@ import { loadCourse, saveProgress, courseProgress, flatLessons, canAccessStudent
 import { formatDuration } from '../../lib/demoCourses';
 import { cn } from '../../lib/utils';
 import AccessBlocked from '../../components/AccessBlocked';
+import LessonThumb from '../../components/LessonThumb';
 
 const FUNC_URL = 'https://bghvzdfikfhceekoxtxg.supabase.co/functions/v1/drive-proxy';
 const driveId = (url = '') =>
@@ -459,7 +460,7 @@ export default function Player() {
                                                     <li key={aula.id} className={cn('flex items-center gap-2 rounded-lg pr-3 transition-colors', active ? 'bg-white/10' : 'hover:bg-white/5')}>
                                                         <button onClick={() => go(aula)} aria-current={active ? 'true' : undefined} className="flex flex-1 min-w-0 items-center gap-3 p-2 text-left">
                                                             <div className="relative h-[54px] w-24 shrink-0 overflow-hidden rounded-md bg-panel">
-                                                                {aula.thumb ? <img src={aula.thumb} alt="" className="h-full w-full object-cover" loading="lazy" /> : <div className="h-full w-full flex items-center justify-center"><Play className="h-4 w-4 text-white/30" /></div>}
+                                                                <LessonThumb aula={aula} course={course} />
                                                                 {active && <div className="absolute inset-0 bg-black/50 flex items-center justify-center"><Play className="h-5 w-5 fill-white text-white" /></div>}
                                                                 {p?.pct > 0 && !p.concluida && <div className="absolute bottom-0 inset-x-0 h-0.5 bg-white/20"><div className="h-full bg-primary" style={{ width: `${p.pct}%` }} /></div>}
                                                             </div>
