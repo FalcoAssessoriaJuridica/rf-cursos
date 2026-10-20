@@ -121,12 +121,15 @@ const RAW_DEMO_COURSES = [
 
 export const DEMO_COURSES = DEMO_ENABLED ? RAW_DEMO_COURSES : [];
 
+import { pushDemoState } from './demoSync';
+
 // ---- Enquadramento de capa dos cursos demo (editável pelo admin, salvo no navegador) ----
 const COVER_KEY = 'rf_demo_covers';
 
 export function getDemoCover(id) {
     try {
-        return (JSON.parse(localStorage.getItem(COVER_KEY)) || {})[id] || {};
+        const { _t, ...cover } = (JSON.parse(localStorage.getItem(COVER_KEY)) || {})[id] || {}; // eslint-disable-line no-unused-vars
+        return cover;
     } catch {
         return {};
     }
@@ -135,8 +138,9 @@ export function getDemoCover(id) {
 export function setDemoCover(id, { capa_posicao_x, capa_posicao_y, capa_zoom }) {
     try {
         const all = JSON.parse(localStorage.getItem(COVER_KEY)) || {};
-        all[id] = { capa_posicao_x, capa_posicao_y, capa_zoom };
+        all[id] = { capa_posicao_x, capa_posicao_y, capa_zoom, _t: Date.now() };
         localStorage.setItem(COVER_KEY, JSON.stringify(all));
+        pushDemoState(COVER_KEY, JSON.stringify(all));
     } catch {
         /* storage indisponível */
     }
@@ -215,15 +219,17 @@ function normalizeEnrollment(e) {
 // Matrículas demo de um aluno (padrão do cadastro, ou o que o admin salvou)
 export function getDemoEnrollments(studentId) {
     const override = readEnrollOverrides()[studentId];
-    const raw = Array.isArray(override) ? override : DEMO_STUDENTS.find((s) => s.id === studentId)?.cursos || [];
+    const saved = Array.isArray(override) ? override : override?.list;
+    const raw = Array.isArray(saved) ? saved : DEMO_STUDENTS.find((s) => s.id === studentId)?.cursos || [];
     return raw.map(normalizeEnrollment);
 }
 
 export function setDemoEnrollments(studentId, enrollments) {
     try {
         const all = readEnrollOverrides();
-        all[studentId] = enrollments.map(normalizeEnrollment);
+        all[studentId] = { _t: Date.now(), list: enrollments.map(normalizeEnrollment) };
         localStorage.setItem(ENROLL_KEY, JSON.stringify(all));
+        pushDemoState(ENROLL_KEY, JSON.stringify(all));
     } catch {
         /* storage indisponível */
     }
