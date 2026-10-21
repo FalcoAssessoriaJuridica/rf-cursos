@@ -72,11 +72,11 @@ export default function Login() {
     };
 
     return (
-        <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden bg-background">
+        <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden bg-background login-root">
             <ThemeToggle className="absolute top-4 right-4 z-20" />
             {/* BACKGROUND LAYER - Simplified Luxury Dark */}
             <div className="absolute inset-0 z-0">
-                <div className="absolute inset-0 bg-gradient-to-br from-black via-[#09090b] to-[#121212]" />
+                <div className="absolute inset-0 bg-gradient-to-br from-black via-[#09090b] to-[#121212] login-gradient" />
                 <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_center,_var(--color-primary)_0%,_transparent_70%)] blur-[120px]" />
             </div>
 
@@ -87,7 +87,7 @@ export default function Login() {
                 transition={{ duration: 0.8, ease: [0.23, 1, 0.32, 1] }}
                 className="relative z-10 w-full max-w-[420px] px-6"
             >
-                <div className="liquid-glass p-8 rounded-[2.5rem] border-white/5 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)] relative glass-shimmer">
+                <div className="liquid-glass login-card p-8 rounded-[2.5rem] relative glass-shimmer">
                     <div className="mb-10 text-center">
                         <motion.div
                             initial={{ opacity: 0, scale: 0.5, rotate: -10 }}
