@@ -391,3 +391,62 @@ html[data-theme='light'] .login-card .input-field:focus-visible { outline: 2px s
 html[data-theme='light'] .login-card .btn-primary { font-size: 13px; font-weight: 700; background-image: linear-gradient(135deg, #8a6310, #a87a1e); text-shadow: 0 1px 1px rgb(0 0 0 / 0.35); }
 html[data-theme='light'] .login-card p { color: #4a4a4a; font-size: 11px; font-weight: 600; }
 html[data-theme='light'] .login-card svg.lucide.absolute { z-index: 2; pointer-events: none; }
+
+/* Tema claro: letras pequenas soltas sobre a foto (fora de cards) em negrito; dentro dos cards mantêm o peso anterior */
+html[data-theme='light'] main .text-xs,
+html[data-theme='light'] main .text-sm,
+html[data-theme='light'] main [class*='text-[10px]'],
+html[data-theme='light'] main [class*='text-[11px]'],
+html[data-theme='light'] main [class*='text-[12px]'] { font-weight: 700; }
+html[data-theme='light'] main :is(.glass, .liquid-glass, .card-3d, .bevel) :is(.text-xs, .text-sm, [class*='text-[10px]'], [class*='text-[11px]'], [class*='text-[12px]']) { font-weight: 600; }
+
+/* Tema claro: letras pequenas soltas (fora de cards) maiores; dentro dos cards voltam ao tamanho de antes */
+html[data-theme='light'] main .text-xs { font-size: 0.875rem; line-height: 1.35rem; }
+html[data-theme='light'] main .text-sm { font-size: 1rem; line-height: 1.5rem; }
+html[data-theme='light'] main [class*='text-[10px]'], html[data-theme='light'] main [class*='text-[11px]'] { font-size: 0.8125rem; }
+html[data-theme='light'] main :is(.glass, .liquid-glass, .card-3d, .bevel) .text-xs { font-size: 0.75rem; line-height: 1rem; }
+html[data-theme='light'] main :is(.glass, .liquid-glass, .card-3d, .bevel) .text-sm { font-size: 0.875rem; line-height: 1.25rem; }
+html[data-theme='light'] main :is(.glass, .liquid-glass, .card-3d, .bevel) [class*='text-[10px]'] { font-size: 11px; }
+html[data-theme='light'] main :is(.glass, .liquid-glass, .card-3d, .bevel) [class*='text-[11px]'] { font-size: 11px; }
+
+/* Tema claro: divisórias em alto relevo 3D (aresta clara em cima, corpo, aresta escura embaixo + sombra projetada) */
+html[data-theme='light'] {
+  --ridge-v: linear-gradient(to bottom, rgb(255 255 255 / 0.95) 0 1px, rgb(255 255 255 / 0.45) 1px 2px, rgb(24 24 27 / 0.45) 2px 3px, rgb(24 24 27 / 0.18) 3px 4px);
+  --ridge-h: linear-gradient(to right, rgb(255 255 255 / 0.95) 0 1px, rgb(255 255 255 / 0.45) 1px 2px, rgb(24 24 27 / 0.45) 2px 3px, rgb(24 24 27 / 0.18) 3px 4px);
+}
+html[data-theme='light'] .emboss-y > * + *::before,
+html[data-theme='light'] .emboss-t::before {
+  height: 4px;
+  border-radius: 2px;
+  box-shadow: 0 2px 3px -1px rgb(24 24 27 / 0.35);
+}
+html[data-theme='light'] main hr {
+  border: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ridge-v);
+  box-shadow: 0 2px 3px -1px rgb(24 24 27 / 0.35);
+}
+
+/* alto relevo 3D reforçado: barra cilíndrica (brilho, corpo, base escura) com sombra projetada */
+html[data-theme='light'] {
+  --ridge-v: linear-gradient(to bottom, rgb(255 255 255 / 1) 0 1px, rgb(255 255 255 / 0.7) 1px 2px, rgb(120 100 60 / 0.35) 2px 3px, rgb(24 24 27 / 0.6) 3px 5px, rgb(24 24 27 / 0.3) 5px 6px);
+}
+html[data-theme='light'] .emboss-y > * + *::before,
+html[data-theme='light'] .emboss-t::before,
+html[data-theme='light'] main hr {
+  height: 6px;
+  border-radius: 3px;
+  box-shadow: 0 3px 4px -1px rgb(24 24 27 / 0.45), 0 0 0 0.5px rgb(255 255 255 / 0.4);
+}
+
+/* Fundos selecionáveis (html[data-bg]); "padrão" = comportamento de cada tema. Fotos escuras ficam mais suaves no tema claro. */
+html[data-bg] body::before, html[data-bg] body.is-student::before { background-size: cover; background-position: center; }
+html[data-bg='estudio'] body::before, html[data-bg='estudio'] body.is-student::before { background-image: url('./assets/bg/estudio.webp'); }
+html[data-bg='lobby'] body::before, html[data-bg='lobby'] body.is-student::before { background-image: url('./assets/bg/lobby.webp'); }
+html[data-bg='atrio'] body::before, html[data-bg='atrio'] body.is-student::before { background-image: url('./assets/bg/atrio.webp'); }
+html[data-bg='salao'] body::before, html[data-bg='salao'] body.is-student::before { background-image: url('./assets/bg/salao.webp'); }
+html[data-theme='light'][data-bg='estudio'] body::before { opacity: 0.55; }
+html[data-theme='light'][data-bg='atrio'] body::before { opacity: 0.6; }
+html[data-theme='light'][data-bg='lobby'] body::before { opacity: 0.3; }
+html[data-theme='light'][data-bg='salao'] body::before { opacity: 0.4; }

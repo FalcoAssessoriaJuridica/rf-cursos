@@ -39,3 +39,47 @@ export function useTheme() {
 
     return { theme, setTheme, toggle };
 }
+
+// ── Fundos (fotos) ──
+const BG_KEY = 'rf_bg';
+export const BACKGROUNDS = [
+    { id: 'padrao', label: 'Padrão' },
+    { id: 'estudio', label: 'Estúdio' },
+    { id: 'lobby', label: 'Lobby' },
+    { id: 'atrio', label: 'Átrio' },
+    { id: 'salao', label: 'Salão de pianos' },
+];
+
+export function getBackground() {
+    try {
+        const saved = localStorage.getItem(BG_KEY);
+        if (BACKGROUNDS.some((b) => b.id === saved)) return saved;
+    } catch {
+        /* storage indisponível */
+    }
+    return 'padrao';
+}
+
+export function applyBackground(id) {
+    if (id === 'padrao') delete document.documentElement.dataset.bg;
+    else document.documentElement.dataset.bg = id;
+}
+
+export function useBackground() {
+    const [bg, setBgState] = useState(getBackground);
+
+    useEffect(() => {
+        applyBackground(bg);
+    }, [bg]);
+
+    const setBg = useCallback((next) => {
+        try {
+            localStorage.setItem(BG_KEY, next);
+        } catch {
+            /* storage indisponível */
+        }
+        setBgState(next);
+    }, []);
+
+    return { bg, setBg };
+}
