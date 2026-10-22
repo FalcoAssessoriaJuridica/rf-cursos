@@ -7,6 +7,7 @@ import Dashboard from './pages/admin/Dashboard';
 import Students from './pages/admin/Students';
 import Courses from './pages/admin/Courses';
 import CourseContent from './pages/admin/CourseContent';
+import Acervo from './pages/admin/Acervo';
 import CourseList from './pages/student/CourseList';
 import Player from './pages/student/Player';
 import CourseDetail from './pages/student/CourseDetail';
@@ -75,6 +76,7 @@ function App() {
             <Route index element={<Dashboard />} />
             <Route path="students" element={<Students />} />
             <Route path="courses" element={<Courses />} />
+            <Route path="partituras" element={<Acervo />} />
             <Route path="courses/:courseId/content" element={<CourseContent />} />
           </Route>
 

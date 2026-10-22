@@ -84,6 +84,7 @@ export default function MainLayout({ isAdmin = false }) {
         ? [
             { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
             { href: '/admin/courses', label: 'Cursos', icon: BookOpen },
+            { href: '/admin/partituras', label: 'Acervo', icon: Music2 },
             { href: '/admin/students', label: 'Alunos', icon: Users },
             { href: '/student', label: 'Área do Aluno', icon: GraduationCap },
         ]
