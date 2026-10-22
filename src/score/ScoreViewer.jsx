@@ -4,7 +4,7 @@ import { ScorePlayer } from './scoreEngine';
 import { cn } from '../lib/utils';
 
 // Partitura interativa: desenha, toca e acompanha com o cursor. Funciona com uma só pauta (clave de Sol) ou várias partes.
-export default function ScoreViewer({ source, title, fromOmr = false }) {
+export default function ScoreViewer({ source, title, fromOmr = false, initialTimeSig = '', initialClean = null }) {
     const holder = useRef(null);
     const player = useRef(null);
     const [state, setState] = useState({ loading: true });
@@ -34,7 +34,7 @@ export default function ScoreViewer({ source, title, fromOmr = false }) {
         return () => { alive = false; p.dispose(); };
     }, [source, clean, timeSig]);
 
-    useEffect(() => { setClean(fromOmr); setTimeSig(''); }, [source, fromOmr]);
+    useEffect(() => { setClean(initialClean ?? fromOmr); setTimeSig(initialTimeSig || ''); }, [source, fromOmr, initialClean, initialTimeSig]);
 
     const toggle = useCallback(async () => {
         const p = player.current;

@@ -10,6 +10,7 @@ import LessonThumb from '../../components/LessonThumb';
 import { isTimeTracked } from '../../lib/media';
 import Collapse from '../../components/Collapse';
 import { useOpenModules } from '../../lib/moduleState';
+import ScoreList from '../../components/ScoreList';
 
 export default function CourseDetail() {
     const { courseId } = useParams();
@@ -134,6 +135,7 @@ export default function CourseDetail() {
                 <div className="mt-6 max-w-3xl text-sm leading-relaxed text-white/80 whitespace-pre-line">{description || 'Sem descrição.'}</div>
             ) : (
                 <div className="mt-6">
+                    <div className="mb-6"><ScoreList cursoId={courseId} title="Partituras do curso" /></div>
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <h2 className="text-base font-semibold">Todos os conteúdos</h2>
                         <div className="relative w-full md:w-80">

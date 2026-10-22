@@ -1,3 +1,4 @@
+import ScoreList from '../../components/ScoreList';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -365,6 +366,8 @@ export default function Player() {
                                 <p className="text-sm text-white/80 leading-relaxed">
                                     {lesson.descricao || 'Esta aula ainda não possui descrição.'}
                                 </p>
+
+                                <ScoreList cursoId={courseId} aulaId={lesson.id} title="Partituras da aula" />
 
                                 {hasMaterials && (
                                     <div className="space-y-3">

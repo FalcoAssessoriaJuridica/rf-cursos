@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../../components/Card'
 import { Plus, ChevronLeft, Pencil, Trash2, Video, List, X, GripVertical, ChevronDown, ChevronRight, Info, AlertTriangle, FileText, Headphones } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import MaterialUploader from '../../components/MaterialUploader';
+import ScoreManager from '../../components/ScoreManager';
 import LessonThumb from '../../components/LessonThumb';
 import { DOC_ACCEPT, AUDIO_ACCEPT, removeMaterialFile } from '../../lib/materials';
 
@@ -225,16 +226,26 @@ export default function CourseContent() {
                 materiais_audio: lessonForm.materiais_audio.filter((m) => m.url),
             };
 
-            const query = editingLesson
-                ? supabase.from('aulas').update(payload).eq('id', editingLesson)
-                : supabase.from('aulas').insert([{ ...payload, modulo_id: activeModuleId }]);
-            const { error: saveError } = await query;
-            if (saveError) throw saveError;
+            let created = null;
+            if (editingLesson) {
+                const { error: saveError } = await supabase.from('aulas').update(payload).eq('id', editingLesson);
+                if (saveError) throw saveError;
+            } else {
+                const { data, error: saveError } = await supabase.from('aulas').insert([{ ...payload, modulo_id: activeModuleId }]).select().single();
+                if (saveError) throw saveError;
+                created = data;
+            }
 
             // aula salva: apaga do Storage o que foi retirado dela
             const keep = new Set(pathsOf(payload).map((m) => m.path));
             await Promise.all(originalItems.filter((m) => !keep.has(m.path)).map(removeMaterialFile));
-            setIsLessonModalOpen(false);
+            if (created?.id) {
+                // aula nova: continua aberta já em edição, com a biblioteca de partituras da aula disponível
+                setEditingLesson(created.id);
+                setOriginalItems(pathsOf(payload));
+            } else {
+                setIsLessonModalOpen(false);
+            }
             fetchCourseData();
         } catch (err) {
             alert(err.message);
@@ -283,6 +294,8 @@ export default function CourseContent() {
                     Ver como aluno
                 </Button>
             </div>
+
+            <Card className="p-4"><ScoreManager cursoId={courseId} title="Biblioteca de partituras do curso" /></Card>
 
             <div className="flex justify-end">
                 <Button onClick={() => openModuleModal()}>
@@ -495,6 +508,9 @@ export default function CourseContent() {
                                     lessonId={editingLesson}
                                     hint="MP3, M4A, WAV, OGG"
                                 />
+                                {editingLesson
+                                    ? <ScoreManager cursoId={courseId} aulaId={editingLesson} title="Partituras da aula" />
+                                    : <p className="rounded-lg border border-dashed border-white/10 p-3 text-xs text-text-muted">A biblioteca de partituras desta aula é aberta assim que você salvar a aula.</p>}
                                 <div className="flex justify-end gap-3 pt-4">
                                     <Button variant="ghost" type="button" onClick={() => {
                                         // descarta uploads feitos nesta edição e não salvos

@@ -12,6 +12,7 @@ import Player from './pages/student/Player';
 import CourseDetail from './pages/student/CourseDetail';
 import Profile from './pages/student/Profile';
 import Partituras from './pages/student/Partituras';
+import PartituraView from './pages/student/PartituraView';
 const Landing = React.lazy(() => import('./landing/Landing'));
 
 // Guardas de rota. Valem para a interface: a sessão fica no localStorage, então a proteção
@@ -82,6 +83,7 @@ function App() {
             <Route index element={<CourseList />} />
             <Route path="perfil" element={<Profile />} />
             <Route path="partituras" element={<Partituras />} />
+            <Route path="partituras/:scoreId" element={<PartituraView />} />
             <Route path="course/:courseId" element={<CourseDetail />} />
             <Route path="course/:courseId/lesson/:lessonId" element={<Player />} />
           </Route>

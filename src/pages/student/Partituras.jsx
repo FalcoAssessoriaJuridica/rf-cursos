@@ -1,5 +1,7 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { FileMusic, Loader2, Upload } from 'lucide-react';
+import { loadLibrary } from '../../lib/scores';
 import ScoreViewer from '../../score/ScoreViewer';
 import { convertToMusicXml, isMusicXml, isPdfOrImage } from '../../score/omr';
 
@@ -15,6 +17,13 @@ export default function Partituras() {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const [fromOmr, setFromOmr] = useState(false);
+    const [library, setLibrary] = useState(null);
+
+    useEffect(() => {
+        let alive = true;
+        loadLibrary().then((l) => alive && setLibrary(l)).catch(() => alive && setLibrary([]));
+        return () => { alive = false; };
+    }, []);
 
     const openFile = async (file) => {
         if (!file) return;
@@ -42,6 +51,27 @@ export default function Partituras() {
                 <h1 className="text-3xl font-black tracking-tight text-text">Partituras</h1>
                 <p className="mt-1 text-sm text-text-muted">Abra uma partitura, ouça a melodia e acompanhe cada nota com o cursor. Funciona com uma única pauta (clave de Sol) ou com várias partes.</p>
             </div>
+
+            <section aria-label="Biblioteca" className="space-y-4">
+                <h2 className="text-xs font-bold uppercase tracking-widest text-primary">Biblioteca dos seus cursos</h2>
+                {library === null && <p className="text-sm text-text-muted">Carregando…</p>}
+                {library?.length === 0 && <p className="text-sm text-text-muted">Quando seus professores publicarem partituras nos cursos ou nas aulas, elas aparecem aqui.</p>}
+                {library?.map((c) => (
+                    <div key={c.id} className="liquid-glass rounded-2xl p-4 md:p-5 space-y-3">
+                        <h3 className="font-bold">{c.titulo}</h3>
+                        {[{ id: 'geral', titulo: 'Geral do curso', scores: c.geral }, ...c.aulas].filter((g) => g.scores.length).map((g) => (
+                            <div key={g.id}>
+                                <p className="text-xs font-semibold text-text-muted mb-1">{g.titulo}</p>
+                                <ul className="grid gap-2 md:grid-cols-2">
+                                    {g.scores.map((s) => (
+                                        <li key={s.id}><Link to={`/student/partituras/${s.id}`} className="bevel flex items-center gap-3 rounded-xl p-3"><FileMusic className="h-5 w-5 text-primary shrink-0" /><span className="truncate text-sm font-semibold">{s.titulo}</span></Link></li>
+                                    ))}
+                                </ul>
+                            </div>
+                        ))}
+                    </div>
+                ))}
+            </section>
 
             <div className="liquid-glass rounded-[2rem] p-6 md:p-8 grid gap-6 md:grid-cols-[1fr_auto] items-center">
                 <div className="space-y-2">
