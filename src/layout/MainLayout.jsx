@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LogOut, LayoutDashboard, Users, BookOpen, GraduationCap, ArrowLeft, UserRound } from 'lucide-react';
+import { LogOut, LayoutDashboard, Users, BookOpen, GraduationCap, ArrowLeft, UserRound, Music2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { Button } from '../components/Button';
@@ -89,14 +89,15 @@ export default function MainLayout({ isAdmin = false }) {
         ]
         : [
             { href: '/student', label: 'Meus Cursos', icon: BookOpen },
+            { href: '/student/partituras', label: 'Partituras', icon: Music2 },
             ...(studentId ? [{ href: '/student/perfil', label: 'Meu perfil', icon: UserRound }] : []),
         ];
 
     return (
         <div className="h-[100dvh] flex relative overflow-hidden">
             {/* Sidebar - Hotmart Inspired */}
-            <aside className="glass-bar !rounded-none !border-y-0 !border-l-0 w-20 lg:w-auto flex flex-col transition-all duration-300 z-50">
-                <div className="h-16 lg:h-20 shrink-0 px-4 lg:px-5 flex items-center justify-center lg:justify-start border-b border-white/5">
+            <aside className="glass-bar !rounded-none md:!border-y-0 md:!border-l-0 max-md:!border-x-0 max-md:!border-b-0 max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:h-16 max-md:flex-row max-md:items-center max-md:pb-[env(safe-area-inset-bottom)] md:w-20 lg:w-auto flex flex-col transition-all duration-300 z-50">
+                <div className="max-md:hidden h-16 lg:h-20 shrink-0 px-4 lg:px-5 flex items-center justify-center lg:justify-start border-b border-white/5">
                     <div className="relative group">
                         <div className="absolute -inset-1 bg-gradient-to-r from-primary/50 to-primary opacity-25 group-hover:opacity-50 blur transition duration-1000 group-hover:duration-200" />
                         <img
@@ -107,13 +108,13 @@ export default function MainLayout({ isAdmin = false }) {
                     </div>
                 </div>
 
-                <nav className="flex-1 px-3 lg:px-4 mt-6 space-y-2">
+                <nav className="flex-1 px-3 lg:px-4 mt-6 space-y-2 max-md:mt-0 max-md:space-y-0 max-md:flex max-md:items-center max-md:justify-around max-md:gap-1 max-md:px-2 max-md:min-w-0">
                     {canReturnToAdmin && (
                         <button
                             type="button"
                             onClick={returnToAdmin}
                             title="Voltar ao painel do administrador"
-                            className="bevel flex w-full items-center justify-center lg:justify-start whitespace-nowrap px-3 py-3 text-sm font-semibold rounded-xl bg-primary text-black hover:bg-primary-hover transition-colors"
+                            className="bevel flex md:w-full items-center justify-center lg:justify-start whitespace-nowrap px-3 py-3 max-md:py-2 text-sm font-semibold rounded-xl bg-primary text-black hover:bg-primary-hover transition-colors"
                         >
                             <ArrowLeft className="h-6 w-6 lg:mr-3" />
                             <span className="hidden lg:inline">Painel Admin</span>
@@ -128,7 +129,7 @@ export default function MainLayout({ isAdmin = false }) {
                                 key={item.href}
                                 to={item.href}
                                 className={cn(
-                                    'flex items-center justify-center lg:justify-start whitespace-nowrap px-3 py-3 text-sm font-medium rounded-xl transition-all duration-300 group',
+                                    'flex items-center justify-center lg:justify-start whitespace-nowrap px-3 py-3 max-md:py-2 text-sm font-medium rounded-xl transition-all duration-300 group',
                                     isActive
                                         ? 'bg-primary/10 text-primary shadow-[0_0_15px_rgba(212,175,55,0.1)]'
                                         : 'text-text-muted hover:bg-white/5 hover:text-text'
@@ -144,7 +145,7 @@ export default function MainLayout({ isAdmin = false }) {
                     })}
                 </nav>
 
-                <div className="p-3 lg:px-4 border-t border-white/5">
+                <div className="p-3 lg:px-4 border-t border-white/5 max-md:border-t-0 max-md:p-0 max-md:pr-2">
                     <button
                         className="flex items-center justify-center lg:justify-start w-full whitespace-nowrap px-3 py-3 text-sm font-medium text-red-500/80 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all duration-300 group"
                         onClick={handleLogout}
@@ -158,8 +159,9 @@ export default function MainLayout({ isAdmin = false }) {
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col min-w-0">
                 {/* Header Section */}
-                <header className="glass-bar relative z-40 !rounded-none !border-x-0 !border-t-0 h-16 lg:h-20 flex items-center justify-between px-6 lg:px-8">
-                    <div className="flex min-w-0 items-center gap-3 lg:gap-4">
+                <header className="glass-bar relative z-40 !rounded-none !border-x-0 !border-t-0 h-16 lg:h-20 flex items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+                    <div className="flex min-w-0 flex-1 items-center gap-3 lg:gap-4">
+                        {(isAdmin || !studentId) && <img src="/logo-rf.png" alt="" className="md:hidden h-10 w-10 rounded-lg object-cover border border-primary/30 shrink-0" />}
                         {!isAdmin && studentId && (
                             <Link to="/student/perfil" title="Meu perfil" aria-label="Meu perfil" className="flex shrink-0 rounded-full transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
                                 <Avatar userId={studentId} name={userName} className="h-[56px] w-[56px] text-sm" />
@@ -172,9 +174,9 @@ export default function MainLayout({ isAdmin = false }) {
                         <p className="text-xs text-text-muted">Bem-vindo de volta!</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex shrink-0 items-center gap-2 sm:gap-4">
                         <ThemeToggle />
-                        <div className="flex items-center gap-3 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full">
+                        <div className="max-sm:hidden flex items-center gap-3 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full whitespace-nowrap">
                             <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse" />
                             <span className="text-xs font-medium text-text-muted">Sistema Online</span>
                         </div>
@@ -182,7 +184,7 @@ export default function MainLayout({ isAdmin = false }) {
                 </header>
 
                 <main className="flex-1 overflow-auto">
-                    <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+                    <div className="p-4 sm:p-6 lg:p-8 max-md:pb-24 max-w-7xl mx-auto">
                         <Outlet />
                     </div>
                 </main>

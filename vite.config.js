@@ -11,6 +11,8 @@ const ADMIN_ITERATIONS = 120000
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_')
+  // chave do serviço OMR: lida só no servidor de desenvolvimento, nunca entra no bundle
+  const omrKey = loadEnv(mode, process.cwd(), '').OMR_API_KEY || ''
 
   // Conteúdo de demonstração (cursos/alunos fake): ligado em desenvolvimento;
   // em produção só com VITE_ENABLE_DEMO=true.
@@ -80,6 +82,14 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       proxy: {
+        '/__omr': {
+          target: 'http://localhost:8080',
+          changeOrigin: true,
+          timeout: 420000,
+          proxyTimeout: 420000,
+          rewrite: (p) => p.replace(/^\/__omr/, ''),
+          headers: { 'X-API-Key': omrKey },
+        },
         '/supabase-api': {
           target: 'https://bghvzdfikfhceekoxtxg.supabase.co',
           changeOrigin: true,

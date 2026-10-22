@@ -735,3 +735,16 @@ html[data-theme='light'][data-bg='gravacao'] aside nav a:active {
   transform: translateY(1px);
   box-shadow: inset 0 2px 4px rgb(24 24 27 / 0.3), inset 0 -1px 0 rgb(255 255 255 / 0.6);
 }
+
+/* Partitura: sempre em "papel" claro para o OSMD (notas pretas) ficar legível nos dois temas */
+.score-paper { background: #fbf7ee; color: #15120c; box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.9), 0 18px 40px -22px rgb(0 0 0 / 0.6); border: 1px solid rgb(24 24 27 / 0.2); }
+.score-paper svg { max-width: 100%; height: auto; }
+
+/* Controles da partitura sempre visíveis: ficam no topo ao rolar, com fundo próprio para não misturar com a partitura */
+.score-controls {
+  background-color: rgb(var(--c-bg) / 0.92);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-relief), 0 14px 28px -18px rgb(0 0 0 / 0.55);
+}
+.score-paper { cursor: default; }

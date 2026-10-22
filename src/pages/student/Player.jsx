@@ -351,10 +351,10 @@ export default function Player() {
                         </div>
 
                         {/* Abas: informações / comentários */}
-                        <div className="mt-6 border-b border-white/10 flex gap-2" role="tablist">
-                            {[['info', 'Informações da aula', FileText], ['comments', 'Comentários 0', MessageSquare]].map(([id, label, Icon]) => (
+                        <div className="mt-6 border-b border-white/10 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist">
+                            {[['info', <>Informações<span className="max-sm:hidden">&nbsp;da aula</span></>, FileText], ['comments', 'Comentários 0', MessageSquare]].map(([id, label, Icon]) => (
                                 <button key={id} role="tab" aria-selected={infoTab === id} onClick={() => setInfoTab(id)}
-                                    className={cn('px-3 py-2 text-sm font-semibold border-b-2 -mb-px flex items-center gap-2 transition-colors', infoTab === id ? 'border-white text-white' : 'border-transparent text-dim hover:text-white')}>
+                                    className={cn('shrink-0 whitespace-nowrap px-3 py-2 text-sm font-semibold border-b-2 -mb-px flex items-center gap-2 transition-colors', infoTab === id ? 'border-white text-white' : 'border-transparent text-dim hover:text-white')}>
                                     <Icon className="h-4 w-4" /> {label}
                                 </button>
                             ))}
