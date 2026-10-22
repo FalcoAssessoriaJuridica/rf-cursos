@@ -11,6 +11,7 @@ import CourseList from './pages/student/CourseList';
 import Player from './pages/student/Player';
 import CourseDetail from './pages/student/CourseDetail';
 import Profile from './pages/student/Profile';
+const Landing = React.lazy(() => import('./landing/Landing'));
 
 // Guardas de rota. Valem para a interface: a sessão fica no localStorage, então a proteção
 // dos dados em si precisa ser feita no servidor (regras/RLS do Supabase).
@@ -83,7 +84,8 @@ function App() {
             <Route path="course/:courseId/lesson/:lessonId" element={<Player />} />
           </Route>
 
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/" element={<React.Suspense fallback={null}><Landing /></React.Suspense>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </ErrorBoundary>

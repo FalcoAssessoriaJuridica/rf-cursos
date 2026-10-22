@@ -24,6 +24,9 @@ export default defineConfig(({ mode }) => {
     : ''
 
   return {
+    // uma única cópia do React (o Remotion Player da landing usa hooks do React da aplicação)
+    resolve: { dedupe: ['react', 'react-dom'] },
+    optimizeDeps: { include: ['remotion', '@remotion/player'] },
     plugins: [
       react(),
       {
