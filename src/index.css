@@ -446,6 +446,9 @@ html[data-bg='estudio'] body::before, html[data-bg='estudio'] body.is-student::b
 html[data-bg='lobby'] body::before, html[data-bg='lobby'] body.is-student::before { background-image: url('./assets/bg/lobby.webp'); }
 html[data-bg='atrio'] body::before, html[data-bg='atrio'] body.is-student::before { background-image: url('./assets/bg/atrio.webp'); }
 html[data-bg='salao'] body::before, html[data-bg='salao'] body.is-student::before { background-image: url('./assets/bg/salao.webp'); }
+html[data-bg='gravacao'] body::before, html[data-bg='gravacao'] body.is-student::before { background-image: url('./assets/bg/gravacao.webp'); }
+html[data-theme='light'][data-bg='gravacao'] body::before { opacity: 0.5; }
+html[data-theme='dark'][data-bg='gravacao'] body::before { opacity: 0.45; }
 html[data-theme='light'][data-bg='estudio'] body::before { opacity: 0.55; }
 html[data-theme='light'][data-bg='atrio'] body::before { opacity: 0.6; }
 html[data-theme='light'][data-bg='lobby'] body::before { opacity: 0.45; }

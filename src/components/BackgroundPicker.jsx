@@ -6,8 +6,9 @@ import estudio from '../assets/bg/estudio.webp';
 import lobby from '../assets/bg/lobby.webp';
 import atrio from '../assets/bg/atrio.webp';
 import salao from '../assets/bg/salao.webp';
+import gravacao from '../assets/bg/gravacao.webp';
 
-const THUMBS = { estudio, lobby, atrio, salao };
+const THUMBS = { estudio, lobby, atrio, salao, gravacao };
 
 export default function BackgroundPicker({ className }) {
     const { bg, setBg } = useBackground();

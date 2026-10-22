@@ -48,6 +48,7 @@ export const BACKGROUNDS = [
     { id: 'estudio', label: 'Estúdio' },
     { id: 'atrio', label: 'Átrio' },
     { id: 'salao', label: 'Salão de pianos' },
+    { id: 'gravacao', label: 'Gravação' },
 ];
 
 export function getBackground() {

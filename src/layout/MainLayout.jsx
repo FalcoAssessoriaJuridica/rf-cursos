@@ -96,13 +96,13 @@ export default function MainLayout({ isAdmin = false }) {
         <div className="h-[100dvh] flex relative overflow-hidden">
             {/* Sidebar - Hotmart Inspired */}
             <aside className="glass-bar !rounded-none !border-y-0 !border-l-0 w-20 lg:w-auto flex flex-col transition-all duration-300 z-50">
-                <div className="p-4 lg:px-5 lg:py-6 flex justify-center lg:justify-start">
+                <div className="h-16 lg:h-20 shrink-0 px-4 lg:px-5 flex items-center justify-center lg:justify-start border-b border-white/5">
                     <div className="relative group">
                         <div className="absolute -inset-1 bg-gradient-to-r from-primary/50 to-primary opacity-25 group-hover:opacity-50 blur transition duration-1000 group-hover:duration-200" />
                         <img
                             src="/logo-rf.png"
                             alt="RF Logo"
-                            className="relative h-12 w-12 lg:h-14 lg:w-14 object-cover rounded-xl border border-primary/20 shadow-2xl"
+                            className="relative h-[56px] w-[56px] object-cover rounded-xl border border-primary/20 shadow-2xl"
                         />
                     </div>
                 </div>
@@ -161,8 +161,8 @@ export default function MainLayout({ isAdmin = false }) {
                 <header className="glass-bar relative z-40 !rounded-none !border-x-0 !border-t-0 h-16 lg:h-20 flex items-center justify-between px-6 lg:px-8">
                     <div className="flex min-w-0 items-center gap-3 lg:gap-4">
                         {!isAdmin && studentId && (
-                            <Link to="/student/perfil" title="Meu perfil" aria-label="Meu perfil" className="shrink-0 rounded-full transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-                                <Avatar userId={studentId} name={userName} className="h-11 w-11 text-sm lg:h-12 lg:w-12" />
+                            <Link to="/student/perfil" title="Meu perfil" aria-label="Meu perfil" className="flex shrink-0 rounded-full transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                                <Avatar userId={studentId} name={userName} className="h-[56px] w-[56px] text-sm" />
                             </Link>
                         )}
                         <div className="min-w-0">
