@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, Check, CheckCircle, ChevronDown, ChevronLeft, ChevronRight, Download, FileText, Headphones,
-    Library, ListVideo, Loader2, MessageSquare, PanelRightClose, PanelRightOpen, Play, Search, Star,
+    Library, ListVideo, Loader2, Maximize2, MessageSquare, Minimize2, PanelRightClose, PanelRightOpen, Play, Search, Star,
 } from 'lucide-react';
 import { loadCourse, saveProgress, courseProgress, flatLessons, canAccessStudentArea } from '../../lib/courseData';
 import { formatDuration } from '../../lib/demoCourses';
@@ -28,6 +28,8 @@ export default function Player() {
     const [progress, setProgress] = useState({});
     const [expanded, toggleModule] = useOpenModules(courseId);
     const [query, setQuery] = useState('');
+    const playerBoxRef = useRef(null);
+    const [fill, setFill] = useState(false); // player ampliado sobre a janela inteira (alternativa quando a tela cheia do navegador é bloqueada)
     const [listOpen, setListOpen] = useState(true);
     const [infoTab, setInfoTab] = useState('info');
     const [rating, setRating] = useState(0);
@@ -196,6 +198,26 @@ export default function Player() {
     }, [modules, query]);
 
     // ── Estados ──
+    // Tela cheia: tenta a do navegador; se for bloqueada (navegadores embutidos, iframes restritos), amplia o player sobre a janela.
+    const toggleFullscreen = useCallback(async () => {
+        if (fill) { setFill(false); return; }
+        if (document.fullscreenElement) { await document.exitFullscreen().catch(() => {}); return; }
+        try {
+            await playerBoxRef.current?.requestFullscreen();
+        } catch {
+            setFill(true);
+        }
+    }, [fill]);
+
+    useEffect(() => {
+        if (!fill) return undefined;
+        const onKey = (e) => { if (e.key === 'Escape') setFill(false); };
+        document.addEventListener('keydown', onKey);
+        const prev = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
+    }, [fill]);
+
     if (loading || (lessonId === 'latest' && lessons.length > 0)) {
         return (
             <div className="flex h-[60vh] items-center justify-center">
@@ -242,7 +264,18 @@ export default function Player() {
                         </div>
 
                         {/* Player */}
-                        <div className="mt-4 aspect-video w-full overflow-hidden rounded-xl bg-black border border-white/10">
+                        <div
+                            ref={playerBoxRef}
+                            className={cn(
+                                'bg-black overflow-hidden',
+                                fill ? 'fixed inset-0 z-[200] h-[100dvh] w-screen' : 'relative mt-4 aspect-video w-full rounded-xl border border-white/10'
+                            )}
+                        >
+                            {fill && (
+                                <button type="button" onClick={() => setFill(false)} aria-label="Sair da tela cheia" className="absolute right-4 top-4 z-10 flex h-10 items-center gap-2 rounded-md bg-black/70 px-3 text-sm font-semibold text-white backdrop-blur hover:bg-black/90">
+                                    <Minimize2 className="h-4 w-4" /> Sair (Esc)
+                                </button>
+                            )}
                             {media.kind === 'video' && (
                                 <video
                                     key={lesson.id}
@@ -286,6 +319,9 @@ export default function Player() {
 
                         {/* Barra de ações */}
                         <div className="mt-3 flex flex-wrap items-center justify-end gap-4">
+                            <button type="button" onClick={toggleFullscreen} className="bevel h-10 px-4 rounded-md border border-white/30 text-sm font-semibold flex items-center gap-2 transition-colors hover:bg-white/10">
+                                <Maximize2 className="h-4 w-4" /> Tela cheia
+                            </button>
                             <div className="flex items-center gap-0.5" role="radiogroup" aria-label="Avaliar aula">
                                 {[1, 2, 3, 4, 5].map((n) => (
                                     <button key={n} role="radio" aria-checked={rating === n} aria-label={`${n} estrela${n > 1 ? 's' : ''}`} onClick={() => setRating(n === rating ? 0 : n)}>
