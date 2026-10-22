@@ -245,7 +245,7 @@ export default function Dashboard() {
     const statusTone = completionPct === null ? 'text-text-muted' : completionPct >= meta ? 'text-green-500' : 'text-yellow-500';
 
     return (
-        <div className="space-y-14 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className="flex min-h-[calc(100dvh-11rem)] flex-col gap-14 animate-in fade-in slide-in-from-bottom-4 duration-700">
             <section className="grid grid-cols-1 gap-12 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:gap-20">
                 {/* Métrica principal: conclusão média real, sem caixa */}
                 <div>
@@ -289,7 +289,7 @@ export default function Dashboard() {
             </section>
 
             {/* Atalhos: botões de contorno com relevo, como no Higgsfield */}
-            <section className="emboss-t pt-10">
+            <section className="emboss-t mt-auto pt-10">
                 <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">Atalhos</h2>
                 <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <QuickAction icon={PlayCircle} label="Gerenciar conteúdo" sub="Cursos, aulas e materiais" onClick={() => navigate('/admin/courses')} />
@@ -489,7 +489,7 @@ function QuickAction({ icon: Icon, label, sub, onClick }) {
             onClick={onClick}
             className="bevel group flex items-center gap-4 rounded-2xl border border-white/15 px-5 py-4 text-left transition-all duration-200 hover:border-primary/60 hover:bg-white/[0.03] active:translate-y-px active:scale-[0.99] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
         >
-            <Icon className="h-5 w-5 shrink-0 text-primary" strokeWidth={1.75} />
+            <Icon className="quick-icon h-6 w-6 shrink-0 text-primary" strokeWidth={2} />
             <span className="min-w-0">
                 <span className="block truncate text-sm font-semibold text-text">{label}</span>
                 <span className="block truncate text-xs text-text-muted">{sub}</span>

@@ -27,8 +27,8 @@
   --c-primary: 212 175 55;
   --c-primary-hover: 184 150 46;
   --c-text: 250 250 250;
-  --c-muted: 161 161 170;
-  --c-dim: 150 147 141;
+  --c-muted: 212 212 220;
+  --c-dim: 190 188 182;
   --c-border: 39 39 42;
 
   /* Vidro limpo (como os cartões/botões do Higgsfield): SEM preenchimento e SEM desfoque — a foto de fundo
@@ -450,3 +450,200 @@ html[data-theme='light'][data-bg='estudio'] body::before { opacity: 0.55; }
 html[data-theme='light'][data-bg='atrio'] body::before { opacity: 0.6; }
 html[data-theme='light'][data-bg='lobby'] body::before { opacity: 0.3; }
 html[data-theme='light'][data-bg='salao'] body::before { opacity: 0.4; }
+
+/* ── Tema claro: paleta harmonizada (tinta quente + um único ouro) e alto relevo nas bordas ── */
+/* Botão de ação (dourado): corpo sólido, aresta clara em cima, base escura embaixo, sombra projetada */
+html[data-theme='light'] :is(.bevel.bg-primary, .btn-primary) {
+  background-color: #8a6310;
+  background-image: linear-gradient(180deg, #b8872a 0%, #8a6310 100%);
+  color: #fff;
+  border: 1px solid rgb(70 48 4 / 0.65);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  text-shadow: 0 1px 1px rgb(0 0 0 / 0.35);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.6),
+    inset 1px 0 0 rgb(255 255 255 / 0.2),
+    inset 0 -2px 0 rgb(0 0 0 / 0.28),
+    inset -1px 0 0 rgb(0 0 0 / 0.12),
+    0 4px 8px -3px rgb(60 40 5 / 0.55);
+}
+html[data-theme='light'] :is(.bevel.bg-primary, .btn-primary):hover { filter: brightness(1.08); }
+html[data-theme='light'] :is(.bevel.bg-primary, .btn-primary):active {
+  box-shadow: inset 0 2px 3px rgb(0 0 0 / 0.4), inset 0 -1px 0 rgb(255 255 255 / 0.25);
+}
+html[data-theme='light'] :is(.bevel.bg-primary, .btn-primary) :is(svg, span) { color: inherit; }
+
+/* Botões de contorno e cards: mesma lógica de relevo, em vidro */
+html[data-theme='light'] .bevel:not(.bg-primary):not(.btn-primary) {
+  border-color: rgb(24 24 27 / 0.35);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.95),
+    inset 1px 0 0 rgb(255 255 255 / 0.5),
+    inset 0 -2px 0 rgb(24 24 27 / 0.2),
+    inset -1px 0 0 rgb(24 24 27 / 0.08),
+    0 3px 6px -2px rgb(24 24 27 / 0.3);
+}
+html[data-theme='light'] .bevel:not(.bg-primary):not(.btn-primary):active {
+  box-shadow: inset 0 2px 3px rgb(24 24 27 / 0.3), inset 0 -1px 0 rgb(255 255 255 / 0.6);
+}
+html[data-theme='light'] :is(.glass, .liquid-glass, .card-3d):not(.login-card) {
+  border-color: rgb(24 24 27 / 0.3);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.95),
+    inset 1px 0 0 rgb(255 255 255 / 0.5),
+    inset 0 -1px 0 rgb(24 24 27 / 0.2),
+    inset -1px 0 0 rgb(24 24 27 / 0.08),
+    0 10px 22px -14px rgb(24 24 27 / 0.4);
+}
+
+/* Tema claro, rodada de revisão (juiz independente): contraste do botão dourado, estrelas, lista de aulas */
+html[data-theme='light'] :is(.bevel.bg-primary, .btn-primary) {
+  background-color: #7a5806;
+  background-image: linear-gradient(180deg, #a87a1e 0%, #7a5806 100%);
+  font-weight: 700;
+}
+html[data-theme='light'] .bevel:not(.bg-primary):not(.btn-primary) {
+  background-color: rgb(255 255 255 / 0.55);
+  color: rgb(var(--c-text));
+}
+html[data-theme='light'] main svg.lucide-star:not(.fill-primary) { color: #a67c2e; }
+html[data-theme='light'] main [aria-current='true'] { background-color: rgb(166 124 46 / 0.14); box-shadow: inset 3px 0 0 #a67c2e; border-radius: 0.5rem; }
+html[data-theme='light'] main .rounded-full.border:not(.bg-green-500):not(.animate-spin) { border-color: rgb(24 24 27 / 0.45); }
+
+/* Tema claro: botões de seta e círculos numerados (bg-panel) em relevo — o cinza liso se perdia sobre a foto */
+html[data-theme='light'] main .bg-panel:not(.overflow-hidden) {
+  background-color: rgb(255 255 255 / 0.92);
+  color: rgb(var(--c-text));
+  border: 1px solid rgb(24 24 27 / 0.3);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 1),
+    inset 0 -2px 0 rgb(24 24 27 / 0.16),
+    0 3px 6px -2px rgb(24 24 27 / 0.35);
+}
+html[data-theme='light'] main button.bg-panel:not(.overflow-hidden):hover { background-color: #fff; }
+html[data-theme='light'] main button.bg-panel:not(.overflow-hidden):active { box-shadow: inset 0 2px 3px rgb(24 24 27 / 0.3); }
+html[data-theme='light'] main button.bg-panel:disabled { background-color: rgb(255 255 255 / 0.5); box-shadow: none; }
+
+/* Tema claro, reforço (juiz independente): face em degradê, aresta de luz, base escura e sombra em duas camadas */
+html[data-theme='light'] main .bg-panel:not(.overflow-hidden),
+html[data-theme='light'] header .glass.rounded-full {
+  background-color: #fff;
+  background-image: linear-gradient(180deg, #ffffff 0%, #e6e7ec 100%);
+  border: 1px solid rgb(24 24 27 / 0.32);
+  color: #2a2a30;
+  box-shadow:
+    inset 0 1px 0 #fff,
+    inset 0 -1px 0 rgb(24 24 27 / 0.12),
+    0 2px 0 rgb(24 24 27 / 0.22),
+    0 7px 12px -4px rgb(24 24 27 / 0.35);
+}
+html[data-theme='light'] main button.bg-panel:not(.overflow-hidden):active,
+html[data-theme='light'] header .glass.rounded-full:active {
+  transform: translateY(1px);
+  box-shadow: inset 0 2px 3px rgb(24 24 27 / 0.3), 0 1px 0 rgb(24 24 27 / 0.15);
+}
+html[data-theme='light'] main .bg-panel:not(.overflow-hidden) svg,
+html[data-theme='light'] header .glass.rounded-full svg { stroke-width: 2.5; color: #2a2a30; }
+html[data-theme='light'] main button.bg-panel:disabled { background-image: none; background-color: rgb(255 255 255 / 0.5); box-shadow: none; }
+
+/* campo de busca: fundo branco com sombra interna (afundado) */
+html[data-theme='light'] main input[placeholder*='Buscar'] {
+  background-color: #fff;
+  border: 1px solid rgb(24 24 27 / 0.3);
+  box-shadow: inset 0 2px 3px rgb(24 24 27 / 0.12), 0 1px 0 rgb(255 255 255 / 0.9);
+}
+html[data-theme='light'] main input[placeholder*='Buscar'] + svg { color: #3a3a40; }
+
+/* Seta de abrir/fechar módulo: sem fundo, o próprio ícone em alto relevo (luz em cima, sombra embaixo) */
+html[data-theme='light'] .module-chevron {
+  color: #3a2a08;
+  stroke-width: 3;
+  filter: drop-shadow(0 -1px 0 rgb(255 255 255 / 0.95)) drop-shadow(0 1.5px 0 rgb(24 24 27 / 0.45)) drop-shadow(0 3px 2px rgb(24 24 27 / 0.3));
+}
+html:not([data-theme='light']) .module-chevron {
+  stroke-width: 2.75;
+  filter: drop-shadow(0 -1px 0 rgb(255 255 255 / 0.35)) drop-shadow(0 1.5px 0 rgb(0 0 0 / 0.7));
+}
+/* Pílula "Sistema Online" (tema claro): vidro em relevo com texto legível */
+html[data-theme='light'] header div.rounded-full.border:not(.glass) {
+  background-color: rgb(255 255 255 / 0.85);
+  background-image: linear-gradient(180deg, #fff, #ebecf0);
+  border: 1px solid rgb(24 24 27 / 0.3);
+  box-shadow: inset 0 1px 0 #fff, 0 2px 0 rgb(24 24 27 / 0.2), 0 6px 10px -4px rgb(24 24 27 / 0.3);
+}
+html[data-theme='light'] header div.rounded-full.border:not(.glass) span { color: #2a2a30; font-weight: 700; }
+
+/* Seta do módulo reforçada: maior, traço grosso em ouro escuro, aresta de luz acima e base escura + sombra abaixo */
+.module-chevron { width: 1.5rem; height: 1.5rem; }
+html[data-theme='light'] .module-chevron {
+  color: #6b4a05;
+  stroke-width: 3.5;
+  filter: drop-shadow(0 -1.5px 0 #fff) drop-shadow(0 1px 0 rgb(24 24 27 / 0.7)) drop-shadow(0 2.5px 0 rgb(24 24 27 / 0.35)) drop-shadow(0 5px 3px rgb(24 24 27 / 0.3));
+}
+html:not([data-theme='light']) .module-chevron {
+  color: rgb(var(--c-primary));
+  stroke-width: 3.5;
+  filter: drop-shadow(0 -1px 0 rgb(255 255 255 / 0.5)) drop-shadow(0 2px 0 rgb(0 0 0 / 0.85)) drop-shadow(0 4px 3px rgb(0 0 0 / 0.5));
+}
+/* Ponto de status mais claro */
+html[data-theme='light'] header div.rounded-full.border:not(.glass) .bg-green-500 { height: 0.5rem; width: 0.5rem; background-color: #16a34a; box-shadow: 0 0 0 3px rgb(22 163 74 / 0.22); }
+
+/* Seta do módulo: nítida, sem sombra/filtro (a sombra deixava o ícone borrado) */
+html[data-theme='light'] .module-chevron,
+html:not([data-theme='light']) .module-chevron { filter: none; }
+html[data-theme='light'] .module-chevron { color: #6b4a05; stroke-width: 3; }
+html:not([data-theme='light']) .module-chevron { stroke-width: 3; }
+
+/* ── Tema escuro: legibilidade dos cinzas e relevo dos controles ── */
+html[data-theme='dark'] main :is([class*='text-white/30'], [class*='text-white/40'], [class*='text-white/50'], [class*='text-white/60'], [class*='text-white/70']) { color: rgb(255 255 255 / 0.86); }
+html[data-theme='dark'] ::placeholder { color: rgb(255 255 255 / 0.7); opacity: 1; }
+html[data-theme='dark'] main :is(.text-xs, .text-sm, [class*='text-[10px]'], [class*='text-[11px]'], [class*='text-[12px]']) { font-weight: 600; }
+html[data-theme='dark'] main :is([class*='border-white/20'], [class*='border-white/30']) { border-color: rgb(255 255 255 / 0.5); }
+html[data-theme='dark'] main svg.lucide-star:not(.fill-primary) { color: rgb(var(--c-primary)); }
+
+html[data-theme='dark'] main .bg-panel:not(.overflow-hidden) {
+  background-color: #34343a;
+  background-image: linear-gradient(180deg, #4a4a52 0%, #2b2b30 100%);
+  color: #fff;
+  border: 1px solid rgb(255 255 255 / 0.28);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.4),
+    inset 0 -2px 0 rgb(0 0 0 / 0.45),
+    0 3px 6px -2px rgb(0 0 0 / 0.7);
+}
+html[data-theme='dark'] main button.bg-panel:not(.overflow-hidden):hover { filter: brightness(1.15); }
+html[data-theme='dark'] main button.bg-panel:not(.overflow-hidden):active { transform: translateY(1px); box-shadow: inset 0 2px 3px rgb(0 0 0 / 0.6); }
+html[data-theme='dark'] main button.bg-panel:disabled { background-image: none; background-color: rgb(255 255 255 / 0.08); box-shadow: none; }
+html[data-theme='dark'] main .bg-panel:not(.overflow-hidden) svg { stroke-width: 2.5; color: #fff; }
+
+html[data-theme='dark'] main input[placeholder*='Buscar'] {
+  background-color: rgb(0 0 0 / 0.35);
+  border: 1px solid rgb(255 255 255 / 0.35);
+  color: #fff;
+  box-shadow: inset 0 2px 3px rgb(0 0 0 / 0.5), 0 1px 0 rgb(255 255 255 / 0.15);
+}
+html[data-theme='dark'] main input[placeholder*='Buscar'] + svg { color: rgb(255 255 255 / 0.85); }
+html[data-theme='dark'] header div.rounded-full.border:not(.glass) {
+  border-color: rgb(255 255 255 / 0.35);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.3), 0 3px 6px -3px rgb(0 0 0 / 0.7);
+}
+html[data-theme='dark'] header div.rounded-full.border:not(.glass) span { color: #fff; font-weight: 700; }
+html[data-theme='dark'] header .glass.rounded-full svg { color: #fff; stroke-width: 2.5; }
+
+/* Tema escuro, revisão: bolinhas de conclusão e estrelas mais visíveis; cinzas um pouco mais claros */
+html[data-theme='dark'] main button[aria-pressed='false'].rounded-full { border: 2px solid rgb(255 255 255 / 0.6); }
+html[data-theme='dark'] main svg.lucide-star:not(.fill-primary) { stroke-width: 2; }
+html[data-theme='dark'] main :is([class*='text-white/30'], [class*='text-white/40'], [class*='text-white/50'], [class*='text-white/60'], [class*='text-white/70']) { color: rgb(240 240 244 / 0.92); }
+html[data-theme='dark'] ::placeholder { color: rgb(240 240 244 / 0.78); }
+
+/* Teste de legibilidade: fonte base ~6% maior (tudo em rem escala junto) e tamanhos fixos em px acompanhando; barra lateral em negrito */
+html { font-size: 17px; }
+[class*='text-[10px]'] { font-size: 11.5px; }
+[class*='text-[11px]'] { font-size: 12.5px; }
+[class*='text-[12px]'] { font-size: 13.5px; }
+html[data-theme] aside :is(a, button, span, p, h1, h2, h3) { font-weight: 700; }
+
+/* Ícones dos atalhos: ouro vivo e nítido no tema claro (o ouro escuro do texto ficava marrom) */
+html[data-theme='light'] .quick-icon { color: #b07d0e; stroke-width: 2.25; }
+html[data-theme='light'] .group:hover .quick-icon { color: #8a6208; }

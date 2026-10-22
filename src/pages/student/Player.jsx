@@ -9,6 +9,8 @@ import { formatDuration } from '../../lib/demoCourses';
 import { cn } from '../../lib/utils';
 import AccessBlocked from '../../components/AccessBlocked';
 import LessonThumb from '../../components/LessonThumb';
+import Collapse from '../../components/Collapse';
+import { useOpenModules } from '../../lib/moduleState';
 import { KindIcon } from '../../components/MaterialUploader';
 import { downloadHref, fileKind, formatBytes, isStorageUrl } from '../../lib/materials';
 import { driveId, resolveMedia, isTimeTracked } from '../../lib/media';
@@ -24,7 +26,7 @@ export default function Player() {
     const [course, setCourse] = useState(null);
     const [modules, setModules] = useState([]);
     const [progress, setProgress] = useState({});
-    const [expanded, setExpanded] = useState(new Set());
+    const [expanded, toggleModule] = useOpenModules(courseId);
     const [query, setQuery] = useState('');
     const [listOpen, setListOpen] = useState(true);
     const [infoTab, setInfoTab] = useState('info');
@@ -81,9 +83,7 @@ export default function Player() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [lesson?.id]);
 
-    // Expande o módulo da aula atual
     useEffect(() => {
-        if (lesson) setExpanded((prev) => new Set([...prev, lesson.modulo_id]));
         lastSaved.current = 0;
     }, [lesson?.id, lesson?.modulo_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -296,7 +296,7 @@ export default function Player() {
                             <button
                                 onClick={() => toggleComplete(lesson)}
                                 className={cn(
-                                    'h-10 px-4 rounded-md border text-sm font-semibold flex items-center gap-2 transition-colors',
+                                    'bevel h-10 px-4 rounded-md border text-sm font-semibold flex items-center gap-2 transition-colors',
                                     cur?.concluida ? 'border-green-500/50 bg-green-500/10 text-green-400' : 'border-white/30 hover:bg-white/10'
                                 )}
                             >
@@ -422,7 +422,7 @@ export default function Player() {
                             return (
                                 <div key={mod.id} className="mb-1">
                                     <button aria-expanded={isOpen}
-                                        onClick={() => setExpanded((prev) => { const n = new Set(prev); n.has(mod.id) ? n.delete(mod.id) : n.add(mod.id); return n; })}
+                                        onClick={() => toggleModule(mod.id)}
                                         className="w-full flex items-center gap-3 p-3 text-left">
                                         <div className="h-10 w-10 shrink-0 rounded-full bg-panel flex items-center justify-center text-sm font-semibold">{idx + 1}</div>
                                         <div className="flex-1 min-w-0">
@@ -432,10 +432,10 @@ export default function Player() {
                                                 <div className="h-1 w-24 rounded-full bg-primary/20 overflow-hidden"><div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} /></div>
                                             </div>
                                         </div>
-                                        <ChevronDown className={cn('h-4 w-4 transition-transform', isOpen && 'rotate-180')} />
+                                        <ChevronDown className={cn('module-chevron h-5 w-5 shrink-0 transition-transform duration-300', isOpen && 'rotate-180')} />
                                     </button>
 
-                                    {isOpen && (
+                                    <Collapse open={isOpen}>
                                         <ul className="space-y-1">
                                             {mod.aulas.map((aula) => {
                                                 const active = aula.id === lesson?.id;
@@ -466,7 +466,7 @@ export default function Player() {
                                                 );
                                             })}
                                         </ul>
-                                    )}
+                                    </Collapse>
                                 </div>
                             );
                         })}

@@ -8,6 +8,8 @@ import AccessBlocked from '../../components/AccessBlocked';
 import { coverStyle } from '../../lib/cover';
 import LessonThumb from '../../components/LessonThumb';
 import { isTimeTracked } from '../../lib/media';
+import Collapse from '../../components/Collapse';
+import { useOpenModules } from '../../lib/moduleState';
 
 export default function CourseDetail() {
     const { courseId } = useParams();
@@ -16,7 +18,7 @@ export default function CourseDetail() {
     const [tab, setTab] = useState('conteudos');
     const [query, setQuery] = useState('');
     const [showMore, setShowMore] = useState(false);
-    const [collapsed, setCollapsed] = useState(new Set());
+    const [openMods, toggleModule] = useOpenModules(courseId);
 
     useEffect(() => {
         let alive = true;
@@ -102,7 +104,7 @@ export default function CourseDetail() {
                     <button
                         disabled={!next}
                         onClick={() => next && open(next)}
-                        className="mt-6 h-10 px-4 rounded-md bg-white text-black text-base font-semibold hover:bg-white/90 transition-colors disabled:opacity-50 flex items-center gap-2"
+                        className="bevel mt-6 h-10 px-4 rounded-md bg-primary text-black text-base font-semibold hover:bg-primary-hover transition-colors disabled:opacity-50 flex items-center gap-2"
                     >
                         <Play className="h-4 w-4 fill-current" />
                         {stats.percent >= 100 ? 'Rever' : started ? 'Continuar' : 'Assistir'}
@@ -150,12 +152,12 @@ export default function CourseDetail() {
                         {filtered.map((mod, idx) => {
                             const done = mod.aulas.filter((a) => progress[a.id]?.concluida).length;
                             const pct = mod.aulas.length ? Math.round((done / mod.aulas.length) * 100) : 0;
-                            const isOpen = !collapsed.has(mod.id);
+                            const isOpen = openMods.has(mod.id) || query.trim().length > 0;
                             return (
                                 <div key={mod.id} className="border-b border-white/10 pt-2 pb-4">
                                     <button
                                         aria-expanded={isOpen}
-                                        onClick={() => setCollapsed((prev) => { const n = new Set(prev); n.has(mod.id) ? n.delete(mod.id) : n.add(mod.id); return n; })}
+                                        onClick={() => toggleModule(mod.id)}
                                         className="w-full flex items-center p-3 text-left"
                                     >
                                         <div className="h-10 w-10 shrink-0 mr-4 rounded-full bg-panel flex items-center justify-center text-sm font-semibold">{idx + 1}</div>
@@ -168,10 +170,10 @@ export default function CourseDetail() {
                                                 </div>
                                             </div>
                                         </div>
-                                        <ChevronDown className={cn('h-5 w-5 transition-transform', isOpen && 'rotate-180')} />
+                                        <ChevronDown className={cn('module-chevron h-5 w-5 shrink-0 transition-transform duration-300', isOpen && 'rotate-180')} />
                                     </button>
 
-                                    {isOpen && (
+                                    <Collapse open={isOpen}>
                                         <ul className="mt-1 space-y-1">
                                             {mod.aulas.map((aula) => {
                                                 const p = progress[aula.id];
@@ -199,7 +201,7 @@ export default function CourseDetail() {
                                                 );
                                             })}
                                         </ul>
-                                    )}
+                                    </Collapse>
                                 </div>
                             );
                         })}
