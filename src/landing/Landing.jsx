@@ -2,15 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, useInView, useMotionValue, useReducedMotion, useSpring, useTransform } from 'framer-motion';
 import { Player } from '@remotion/player';
-import { ArrowRight, Download, KeyRound, Lock, Music2, PlayCircle } from 'lucide-react';
-import ThemeToggle from '../components/ThemeToggle';
+import { ArrowRight, KeyRound, Lock, Music2, PlayCircle } from 'lucide-react';
 import { HeroReel, HERO_REEL } from './reels/HeroReel';
 import { StaffReel, STAFF_REEL } from './reels/StaffReel';
 import capaJazz from '../assets/landing/capa-jazz.webp';
 import capaPiano from '../assets/landing/capa-piano.webp';
 import './landing.css';
-
-const MODALIDADES = ['Piano popular', 'Harmonia', 'Improvisação', 'Jazz', 'Teoria aplicada', 'Arranjo', 'Prática guiada'];
 
 // destino do botão principal: quem já entrou vai direto para a área dele
 const entryTarget = () => {
@@ -143,8 +140,6 @@ export default function Landing() {
 
     return (
         <div className="lp">
-            <div className="lp-grain" aria-hidden="true" />
-
             <header className="lp-nav">
                 <Link to="/" className="lp-brand" aria-label="RF Cursos, página inicial">
                     <img src="/logo-rf.png" alt="" width="44" height="44" />
@@ -153,15 +148,13 @@ export default function Landing() {
                 <nav className="lp-nav-links" aria-label="Seções">
                     <a href="#estudo">O estudo</a>
                     <a href="#cursos">Cursos</a>
-                    <a href="#acesso">Acesso</a>
                 </nav>
                 <div className="lp-nav-actions">
-                    <ThemeToggle />
                     <Link to={entry.to} className="lp-btn lp-btn-outline">{entry.to === '/login' ? 'Entrar' : 'Minha área'}</Link>
                 </div>
             </header>
 
-            <main>
+            <div role="main" className="lp-main">
                 {/* ── HERO: texto à esquerda, o reel do Remotion avança sobre a coluna e sangra à direita ── */}
                 <section className="lp-hero">
                     <div className="lp-hero-copy">
@@ -170,24 +163,18 @@ export default function Landing() {
                         </motion.p>
                         <h1 className="lp-h1">
                             {['Música', 'ensinada', 'com'].map((w, i) => (
-                                <motion.span key={w} className="lp-word" initial={{ opacity: 0, y: '0.6em' }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.15 + i * 0.09, ease: [0.16, 1, 0.3, 1] }}>{w} </motion.span>
+                                <motion.span key={w} className="lp-word" initial={{ opacity: 0, y: '0.6em' }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.15 + i * 0.09, ease: [0.16, 1, 0.3, 1] }}>{w}</motion.span>
                             ))}
-                            <motion.span className="lp-word lp-gold" initial={{ opacity: 0, y: '0.6em' }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.45, ease: [0.16, 1, 0.3, 1] }}>ofício,</motion.span>
-                            <br />
-                            {['estudada', 'no', 'seu', 'ritmo.'].map((w, i) => (
-                                <motion.span key={w} className="lp-word lp-soft" initial={{ opacity: 0, y: '0.6em' }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.55 + i * 0.08, ease: [0.16, 1, 0.3, 1] }}>{w} </motion.span>
-                            ))}
+                            <motion.span className="lp-word lp-gold" initial={{ opacity: 0, y: '0.6em' }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.45, ease: [0.16, 1, 0.3, 1] }}>ofício.</motion.span>
                         </h1>
                         <motion.p className="lp-lead" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.95 }}>
-                            Videoaulas, partituras e áudios de apoio reunidos em um só lugar. O acesso é pessoal: entre com seu e-mail e senha e continue exatamente de onde parou.
+                            Videoaulas, partituras e áudios em um só lugar. Entre com seu e-mail e senha e continue de onde parou.
                         </motion.p>
                         <motion.div className="lp-cta" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 1.1 }}>
                             <MagneticLink to={entry.to} className="lp-btn lp-btn-gold">
                                 {entry.label} <ArrowRight size={18} strokeWidth={2.4} />
                             </MagneticLink>
-                            <a href="#cursos" className="lp-link">Conhecer os cursos</a>
                         </motion.div>
-                        <p className="lp-fine"><Lock size={14} strokeWidth={2.4} /> Acesso exclusivo para alunos matriculados</p>
                     </div>
 
                     <motion.div className="lp-hero-reel" initial={{ opacity: 0, x: 60 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 1.1, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}>
@@ -197,13 +184,8 @@ export default function Landing() {
                     </motion.div>
                 </section>
 
-                <div className="lp-marquee" aria-hidden="true">
-                    <div className="lp-marquee-track">
-                        {[...MODALIDADES, ...MODALIDADES, ...MODALIDADES].map((m, i) => (
-                            <span key={i}>{m}<i /></span>
-                        ))}
-                    </div>
-                </div>
+
+                <div className="lp-rule" aria-hidden="true" />
 
                 {/* ── O ESTUDO ── */}
                 <section id="estudo" className="lp-section">
@@ -230,15 +212,10 @@ export default function Landing() {
                             </div>
                         </Reveal>
 
-                        <Reveal delay={0.16} className="lp-card lp-card-files">
-                            <div className="lp-chips" aria-hidden="true"><span><Download size={14} strokeWidth={2.4} /> PDF</span><span>Áudio</span><span>Partitura</span></div>
-                            <div className="lp-card-body">
-                                <h3>Materiais para baixar</h3>
-                                <p>Apostilas, partituras e áudios de apoio ao lado de cada aula.</p>
-                            </div>
-                        </Reveal>
                     </div>
                 </section>
+
+                <div className="lp-rule" aria-hidden="true" />
 
                 {/* ── CURSOS ── */}
                 <section id="cursos" className="lp-section lp-courses">
@@ -247,10 +224,6 @@ export default function Landing() {
                         <h2 className="lp-h2">Do repertório popular <em>ao jazz.</em></h2>
                     </Reveal>
                     <div className="lp-course-row">
-                        <Reveal className="lp-course-note">
-                            <p>Os cursos disponíveis para você aparecem na plataforma assim que o seu acesso é liberado, cada um com módulos, aulas e materiais.</p>
-                            <Link to="/login" className="lp-link">Ver meus cursos</Link>
-                        </Reveal>
                         <Reveal className="lp-course lp-course-a">
                             <img src={capaJazz} alt="Capa do curso Movimentos Harmônicos — Tocando Jazz" loading="lazy" />
                             <div className="lp-course-info"><span>Jazz · Harmonia</span><h3>Movimentos Harmônicos — Tocando Jazz</h3></div>
@@ -262,17 +235,19 @@ export default function Landing() {
                     </div>
                 </section>
 
+                <div className="lp-rule" aria-hidden="true" />
+
                 {/* ── ACESSO ── */}
                 <section id="acesso" className="lp-section lp-access">
                     <Reveal className="lp-access-card">
                         <KeyRound className="lp-ico" size={30} strokeWidth={1.6} />
                         <h2 className="lp-h2">Já é aluno? <em>Entre.</em></h2>
-                        <p>Use o e-mail e a senha do seu cadastro. Seu acesso mostra quais cursos estão liberados e até quando.</p>
+                        <p>Use o e-mail e a senha do seu cadastro.</p>
                         <MagneticLink to={entry.to} className="lp-btn lp-btn-gold lp-btn-lg">{entry.label} <ArrowRight size={20} strokeWidth={2.4} /></MagneticLink>
-                        <p className="lp-fine">Ainda não tem acesso? Solicite a liberação ao suporte da academia.</p>
+                        <p className="lp-fine"><Lock size={14} strokeWidth={2.4} /> Acesso exclusivo para alunos matriculados</p>
                     </Reveal>
                 </section>
-            </main>
+            </div>
 
             <footer className="lp-footer">
                 <span>© {year} RF Music Academy</span>

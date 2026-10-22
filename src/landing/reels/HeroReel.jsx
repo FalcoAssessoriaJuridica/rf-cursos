@@ -96,8 +96,7 @@ export const HeroReel = () => {
 
                 <Wave frame={frame} pulse={pulse} phase={0} opacity={0.95} width={3} />
                 <Wave frame={frame} pulse={pulse} phase={1.4} opacity={0.5} width={2} />
-                <Wave frame={frame} pulse={pulse} phase={2.9} opacity={0.28} width={1.5} />
-                {Array.from({ length: 9 }).map((_, i) => <Note key={i} frame={frame} i={i} />)}
+                {Array.from({ length: 4 }).map((_, i) => <Note key={i} frame={frame} i={i * 2} />)}
 
                 {/* luz saindo das teclas pressionadas */}
                 {Array.from({ length: WHITE_KEYS }).map((_, k) => {
