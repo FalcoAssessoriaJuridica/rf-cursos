@@ -17,11 +17,11 @@ export default function LessonThumb({ aula, course, className = '' }) {
     return (
         <div className={`relative h-full w-full overflow-hidden bg-panel ${className}`}>
             {course?.capa_url ? (
-                <img src={course.capa_url} alt="" loading="lazy" style={coverStyle(course)} className="absolute inset-0 h-full w-full object-cover opacity-60" />
+                <img src={course.capa_url} alt="" loading="lazy" style={coverStyle(course)} className="absolute inset-0 h-full w-full object-cover" />
             ) : null}
 
             {ownState !== 'ready' && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/25">
+                <div className="lesson-thumb-icon absolute inset-0 flex items-center justify-center bg-black/10">
                     <Play className="h-5 w-5 fill-white/80 text-white/80" />
                 </div>
             )}

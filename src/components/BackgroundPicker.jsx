@@ -39,7 +39,7 @@ export default function BackgroundPicker({ className }) {
                 <ImageIcon className="h-4 w-4" />
             </button>
             {open && (
-                <div role="listbox" aria-label="Imagem de fundo" className="glass absolute right-0 top-12 z-50 w-64 rounded-2xl p-3 backdrop-blur-xl">
+                <div role="listbox" aria-label="Imagem de fundo" className="glass bg-picker-menu absolute right-0 top-12 z-50 w-64 rounded-2xl p-3">
                     <p className="mb-2 px-1 text-xs font-bold uppercase tracking-widest text-dim">Imagem de fundo</p>
                     <div className="grid grid-cols-2 gap-2">
                         {BACKGROUNDS.map((b) => (

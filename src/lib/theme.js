@@ -42,10 +42,10 @@ export function useTheme() {
 
 // ── Fundos (fotos) ──
 const BG_KEY = 'rf_bg';
+export const DEFAULT_BG = 'lobby';
 export const BACKGROUNDS = [
-    { id: 'padrao', label: 'Padrão' },
-    { id: 'estudio', label: 'Estúdio' },
     { id: 'lobby', label: 'Lobby' },
+    { id: 'estudio', label: 'Estúdio' },
     { id: 'atrio', label: 'Átrio' },
     { id: 'salao', label: 'Salão de pianos' },
 ];
@@ -57,12 +57,11 @@ export function getBackground() {
     } catch {
         /* storage indisponível */
     }
-    return 'padrao';
+    return DEFAULT_BG;
 }
 
 export function applyBackground(id) {
-    if (id === 'padrao') delete document.documentElement.dataset.bg;
-    else document.documentElement.dataset.bg = id;
+    document.documentElement.dataset.bg = id;
 }
 
 export function useBackground() {

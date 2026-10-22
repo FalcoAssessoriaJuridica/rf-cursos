@@ -160,10 +160,10 @@ export default function CourseList() {
                 className="relative overflow-hidden p-8 md:p-12 rounded-[2.5rem] liquid-glass"
             >
                 <div className="relative z-10 max-w-2xl">
-                    <h1 className="text-4xl md:text-5xl font-black tracking-tighter text-luxury-gold uppercase leading-none mb-4">
+                    <h1 className="text-4xl md:text-5xl font-black tracking-tighter text-luxury-gold uppercase leading-[1.25] pt-1 mb-3">
                         Olá, {userName || 'Estudante'}
                     </h1>
-                    <p className="text-white/60 text-lg md:text-xl font-light tracking-wide max-w-md">
+                    <p className="hero-sub text-white/60 text-lg md:text-xl font-light tracking-wide max-w-md">
                         Bem-vindo de volta à sua jornada musical. Continue de onde parou.
                     </p>
                 </div>
@@ -214,7 +214,7 @@ export default function CourseList() {
                                             <Play className="h-12 w-12 text-primary/20 group-hover:text-primary transition-colors duration-500" />
                                         </div>
                                     )}
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
+                                    <div className="cover-fade absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
 
                                     <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between text-white">
                                         <div className="flex items-center gap-1 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 text-[10px] font-black tracking-widest uppercase">

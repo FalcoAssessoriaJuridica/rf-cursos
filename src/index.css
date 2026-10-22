@@ -448,7 +448,7 @@ html[data-bg='atrio'] body::before, html[data-bg='atrio'] body.is-student::befor
 html[data-bg='salao'] body::before, html[data-bg='salao'] body.is-student::before { background-image: url('./assets/bg/salao.webp'); }
 html[data-theme='light'][data-bg='estudio'] body::before { opacity: 0.55; }
 html[data-theme='light'][data-bg='atrio'] body::before { opacity: 0.6; }
-html[data-theme='light'][data-bg='lobby'] body::before { opacity: 0.3; }
+html[data-theme='light'][data-bg='lobby'] body::before { opacity: 0.45; }
 html[data-theme='light'][data-bg='salao'] body::before { opacity: 0.4; }
 
 /* ── Tema claro: paleta harmonizada (tinta quente + um único ouro) e alto relevo nas bordas ── */
@@ -647,3 +647,38 @@ html[data-theme] aside :is(a, button, span, p, h1, h2, h3) { font-weight: 700; }
 /* Ícones dos atalhos: ouro vivo e nítido no tema claro (o ouro escuro do texto ficava marrom) */
 html[data-theme='light'] .quick-icon { color: #b07d0e; stroke-width: 2.25; }
 html[data-theme='light'] .group:hover .quick-icon { color: #8a6208; }
+
+/* Capas nítidas: no tema claro o degradê "preto→transparente" virava um véu branco esfumaçado — removido; no escuro fica só um fade curto */
+html[data-theme='light'] .cover-fade { display: none; }
+html[data-theme='dark'] .cover-fade { background-image: linear-gradient(to top, rgb(0 0 0 / 0.55) 0%, transparent 40%); }
+html[data-theme='light'] .lesson-thumb-icon { background-color: transparent; }
+html[data-theme='light'] .lesson-thumb-icon svg { fill: #fff; color: #fff; filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.6)); }
+/* Título com degradê recortado no texto: sem corte de acento no Firefox */
+.text-luxury-gold { padding-top: 0.12em; }
+/* Barra lateral (tema claro): menos desfoque, a foto aparece mais nítida */
+html[data-theme='light'] aside.glass-bar { -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+
+/* Menu de fundos: fundo sólido para as miniaturas e os nomes ficarem nítidos */
+html[data-theme='light'] .bg-picker-menu { background-color: rgb(255 255 255 / 0.95); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+html[data-theme='dark'] .bg-picker-menu { background-color: rgb(20 20 23 / 0.94); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+
+/* Saudação do portal do aluno: cinza claro e fino sumia sobre a foto — tinta forte e peso médio nos dois temas */
+html[data-theme='light'] .hero-sub { color: rgb(var(--c-text) / 0.92); font-weight: 600; }
+html[data-theme='dark'] .hero-sub { color: rgb(255 255 255 / 0.92); font-weight: 400; }
+/* Foto de perfil: anel dourado com relevo, sem brilho */
+.avatar-ring { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35), 0 2px 6px -2px rgb(0 0 0 / 0.5); }
+html[data-theme='light'] .avatar-ring { background-color: #fff; color: #7a5806; box-shadow: inset 0 1px 0 #fff, 0 2px 0 rgb(24 24 27 / 0.2), 0 6px 10px -4px rgb(24 24 27 / 0.35); }
+
+/* Perfil: cartão com corpo e leitura firme (tema claro); campo de e-mail claramente bloqueado; foco visível */
+html[data-theme='light'] .profile-card { background-color: rgb(255 255 255 / 0.78); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+html[data-theme='light'] .profile-label { font-size: 0.8125rem; color: #6e4f0e; }
+html[data-theme='light'] .profile-hint { font-size: 0.8125rem; color: #4a4036; font-weight: 600; }
+html[data-theme='light'] .input-field { background-color: rgb(255 255 255 / 0.95); border: 1px solid rgb(24 24 27 / 0.28); color: #1b1b1b; }
+html[data-theme='light'] .input-field::placeholder { color: #8a8a90; }
+.profile-readonly { cursor: not-allowed; }
+html[data-theme='light'] .profile-readonly { background-color: #ebe8e1; color: #5a5148; border-style: dashed; }
+html[data-theme='dark'] .profile-readonly { background-color: rgb(255 255 255 / 0.06); color: rgb(255 255 255 / 0.75); border-style: dashed; }
+.input-field:focus-visible { outline: 2px solid rgb(var(--c-primary)); outline-offset: 2px; }
+/* "Sair" legível nos dois temas */
+html[data-theme='light'] aside button[class*='text-red-500'] { color: #b3261e; font-weight: 700; }
+html[data-theme='dark'] aside button[class*='text-red-500'] { color: #ff8a80; font-weight: 700; }

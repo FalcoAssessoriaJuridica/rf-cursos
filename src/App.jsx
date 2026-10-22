@@ -10,6 +10,7 @@ import CourseContent from './pages/admin/CourseContent';
 import CourseList from './pages/student/CourseList';
 import Player from './pages/student/Player';
 import CourseDetail from './pages/student/CourseDetail';
+import Profile from './pages/student/Profile';
 
 // Guardas de rota. Valem para a interface: a sessão fica no localStorage, então a proteção
 // dos dados em si precisa ser feita no servidor (regras/RLS do Supabase).
@@ -77,6 +78,7 @@ function App() {
           {/* Student Routes */}
           <Route path="/student" element={<StudentRoute><MainLayout isAdmin={false} /></StudentRoute>}>
             <Route index element={<CourseList />} />
+            <Route path="perfil" element={<Profile />} />
             <Route path="course/:courseId" element={<CourseDetail />} />
             <Route path="course/:courseId/lesson/:lessonId" element={<Player />} />
           </Route>

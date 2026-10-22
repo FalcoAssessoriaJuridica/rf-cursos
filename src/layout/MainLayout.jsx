@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LogOut, LayoutDashboard, Users, BookOpen, GraduationCap, ArrowLeft } from 'lucide-react';
+import { LogOut, LayoutDashboard, Users, BookOpen, GraduationCap, ArrowLeft, UserRound } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { Button } from '../components/Button';
 import ThemeToggle from '../components/ThemeToggle';
 import { DEMO_ENABLED } from '../lib/demoCourses';
+import Avatar from '../components/Avatar';
 
 export default function MainLayout({ isAdmin = false }) {
     const location = useLocation();
     const navigate = useNavigate();
     const [userName, setUserName] = useState('');
+    const studentId = localStorage.getItem('rf_user_id');
 
     useEffect(() => {
         // Controle dinâmico de classe no body para fundo diferenciado
@@ -43,11 +45,15 @@ export default function MainLayout({ isAdmin = false }) {
             fetchAdminName();
         } else {
             // Aluno: nome já está salvo no localStorage pelo Login.jsx
-            const storedName = localStorage.getItem('rf_user_name');
-            if (storedName) {
-                setUserName(storedName.split(' ')[0]);
-            }
+            const readName = () => {
+                const storedName = localStorage.getItem('rf_user_name');
+                if (storedName) setUserName(storedName.split(' ')[0]);
+            };
+            readName();
+            window.addEventListener('rf-profile', readName);
+            return () => window.removeEventListener('rf-profile', readName);
         }
+        return undefined;
     }, []);
 
     const handleLogout = async () => {
@@ -83,13 +89,14 @@ export default function MainLayout({ isAdmin = false }) {
         ]
         : [
             { href: '/student', label: 'Meus Cursos', icon: BookOpen },
+            ...(studentId ? [{ href: '/student/perfil', label: 'Meu perfil', icon: UserRound }] : []),
         ];
 
     return (
-        <div className="min-h-screen flex relative overflow-hidden">
+        <div className="h-[100dvh] flex relative overflow-hidden">
             {/* Sidebar - Hotmart Inspired */}
-            <aside className="glass-bar !rounded-none !border-y-0 !border-l-0 w-20 lg:w-64 flex flex-col transition-all duration-300 z-50">
-                <div className="p-4 lg:p-6 flex justify-center lg:justify-start">
+            <aside className="glass-bar !rounded-none !border-y-0 !border-l-0 w-20 lg:w-auto flex flex-col transition-all duration-300 z-50">
+                <div className="p-4 lg:px-5 lg:py-6 flex justify-center lg:justify-start">
                     <div className="relative group">
                         <div className="absolute -inset-1 bg-gradient-to-r from-primary/50 to-primary opacity-25 group-hover:opacity-50 blur transition duration-1000 group-hover:duration-200" />
                         <img
@@ -106,7 +113,7 @@ export default function MainLayout({ isAdmin = false }) {
                             type="button"
                             onClick={returnToAdmin}
                             title="Voltar ao painel do administrador"
-                            className="bevel flex w-full items-center justify-center lg:justify-start px-3 py-3 text-sm font-semibold rounded-xl bg-primary text-black hover:bg-primary-hover transition-colors"
+                            className="bevel flex w-full items-center justify-center lg:justify-start whitespace-nowrap px-3 py-3 text-sm font-semibold rounded-xl bg-primary text-black hover:bg-primary-hover transition-colors"
                         >
                             <ArrowLeft className="h-6 w-6 lg:mr-3" />
                             <span className="hidden lg:inline">Painel Admin</span>
@@ -121,7 +128,7 @@ export default function MainLayout({ isAdmin = false }) {
                                 key={item.href}
                                 to={item.href}
                                 className={cn(
-                                    'flex items-center justify-center lg:justify-start px-3 py-3 text-sm font-medium rounded-xl transition-all duration-300 group',
+                                    'flex items-center justify-center lg:justify-start whitespace-nowrap px-3 py-3 text-sm font-medium rounded-xl transition-all duration-300 group',
                                     isActive
                                         ? 'bg-primary/10 text-primary shadow-[0_0_15px_rgba(212,175,55,0.1)]'
                                         : 'text-text-muted hover:bg-white/5 hover:text-text'
@@ -137,12 +144,12 @@ export default function MainLayout({ isAdmin = false }) {
                     })}
                 </nav>
 
-                <div className="p-4 border-t border-white/5">
+                <div className="p-3 lg:px-4 border-t border-white/5">
                     <button
-                        className="flex items-center justify-center lg:justify-start w-full px-3 py-3 text-sm font-medium text-red-500/80 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all duration-300 group"
+                        className="flex items-center justify-center lg:justify-start w-full whitespace-nowrap px-3 py-3 text-sm font-medium text-red-500/80 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all duration-300 group"
                         onClick={handleLogout}
                     >
-                        <LogOut className="h-6 w-6 lg:mr-2 transition-transform group-hover:-translate-x-1" />
+                        <LogOut className="h-6 w-6 lg:mr-3 transition-transform group-hover:-translate-x-1" />
                         <span className="hidden lg:inline">Sair</span>
                     </button>
                 </div>
@@ -151,12 +158,19 @@ export default function MainLayout({ isAdmin = false }) {
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col min-w-0">
                 {/* Header Section */}
-                <header className="glass-bar !rounded-none !border-x-0 !border-t-0 h-16 lg:h-20 flex items-center justify-between px-6 lg:px-8">
-                    <div>
+                <header className="glass-bar relative z-40 !rounded-none !border-x-0 !border-t-0 h-16 lg:h-20 flex items-center justify-between px-6 lg:px-8">
+                    <div className="flex min-w-0 items-center gap-3 lg:gap-4">
+                        {!isAdmin && studentId && (
+                            <Link to="/student/perfil" title="Meu perfil" aria-label="Meu perfil" className="shrink-0 rounded-full transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                                <Avatar userId={studentId} name={userName} className="h-11 w-11 text-sm lg:h-12 lg:w-12" />
+                            </Link>
+                        )}
+                        <div className="min-w-0">
                         <h2 className="text-lg lg:text-xl font-bold text-text truncate">
                             Olá, <span className="text-luxury-gold">{userName || 'Carregando...'}</span>
                         </h2>
                         <p className="text-xs text-text-muted">Bem-vindo de volta!</p>
+                        </div>
                     </div>
                     <div className="flex items-center gap-4">
                         <ThemeToggle />

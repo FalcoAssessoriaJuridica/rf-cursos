@@ -74,11 +74,11 @@ export default function CourseDetail() {
                         src={course.capa_url}
                         alt=""
                         aria-hidden
-                        className="absolute inset-y-0 right-0 h-full w-full md:w-1/2 object-cover opacity-40 md:opacity-70"
-                        style={{ ...coverStyle(course), maskImage: 'linear-gradient(to left, black 40%, transparent)', WebkitMaskImage: 'linear-gradient(to left, black 40%, transparent)' }}
+                        className="absolute inset-y-0 right-0 h-full w-full md:w-1/2 object-cover opacity-80 md:opacity-100"
+                        style={{ ...coverStyle(course), maskImage: 'linear-gradient(to left, black 52%, transparent)', WebkitMaskImage: 'linear-gradient(to left, black 52%, transparent)' }}
                     />
                 )}
-                <div className="relative z-10 p-6 md:p-10 max-w-2xl">
+                <div className="relative z-10 p-6 md:p-10 max-w-lg">
                     <button onClick={() => navigate('/student')} className="flex items-center gap-2 text-sm font-semibold text-white/80 hover:text-white mb-6">
                         <ArrowLeft className="h-4 w-4" /> Voltar
                     </button>
