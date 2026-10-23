@@ -3,6 +3,7 @@
 import { OpenSheetMusicDisplay } from 'opensheetmusicdisplay';
 import * as Tone from 'tone';
 import JSZip from 'jszip';
+import { DrumKit, drumVoice } from './drumKit';
 
 // piano de amostras (Salamander) hospedado pelo Tone.js; sem rede cai num sintetizador
 const SAMPLE_BASE = 'https://tonejs.github.io/audio/salamander/';
@@ -67,6 +68,24 @@ export function prepareXml(xml, { clean = false, timeSig = null } = {}) {
     return { xml: new XMLSerializer().serializeToString(doc), hasTime: !!doc.querySelector('time') };
 }
 
+// Partes de percussão (têm <unpitched>) e o nome/número MIDI de cada instrumento, para escolher o som de cada nota.
+export function readDrumInfo(xml) {
+    const info = { parts: new Set(), instruments: new Map() };
+    if (!/<unpitched>/.test(xml)) return info;
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    if (doc.querySelector('parsererror')) return info;
+    [...doc.querySelectorAll('part')].forEach((part, i) => { if (part.querySelector('unpitched')) info.parts.add(i); });
+    doc.querySelectorAll('score-part').forEach((sp) => {
+        sp.querySelectorAll('score-instrument').forEach((si) => {
+            const id = si.getAttribute('id');
+            const mi = [...sp.querySelectorAll('midi-instrument')].find((m) => m.getAttribute('id') === id);
+            const mu = mi?.querySelector('midi-unpitched')?.textContent;
+            info.instruments.set(id, { name: si.querySelector('instrument-name')?.textContent || '', midiUnpitched: mu ? Number(mu) : null });
+        });
+    });
+    return info;
+}
+
 export async function readScoreXml(source, opts) {
     const xml = await toXmlText(await toBuffer(source));
     return prepareXml(xml, opts);
@@ -96,11 +115,14 @@ export class ScorePlayer {
         this.playing = false;
         this._ids = [];
         this.sampler = null;
+        this.kit = null;
+        this.drum = { parts: new Set(), instruments: new Map() };
         this.click = null;
     }
 
     async load(source, opts = {}) {
         const { xml, hasTime } = await readScoreXml(source, opts);
+        this.drum = readDrumInfo(xml);
         await this.osmd.load(xml);
         this.osmd.render();
         this.osmd.cursor.show();
@@ -138,7 +160,12 @@ export class ScorePlayer {
                         if (tie.StartNote !== n) continue;
                         dur = tie.Notes.reduce((a, x) => a + x.Length.RealValue, 0);
                     }
-                    notes.push({ midi: n.halfTone + 12, dur, part: part < 0 ? 0 : part });
+                    if (this.drum.parts.has(part)) {
+                        const ins = this.drum.instruments.get(n.playbackInstrumentId) || {};
+                        notes.push({ drum: drumVoice({ name: ins.name, midiUnpitched: ins.midiUnpitched, shown: n.halfTone + 12 }), dur, part: part < 0 ? 0 : part });
+                    } else {
+                        notes.push({ midi: n.halfTone + 12, dur, part: part < 0 ? 0 : part });
+                    }
                 }
             }
             events.push({ t, notes });
@@ -151,7 +178,12 @@ export class ScorePlayer {
 
     async _ensureAudio() {
         await Tone.start();
-        if (this.sampler) return;
+        if (!this.kit && this.events.some((e) => e.notes.some((n) => n.drum))) this.kit = new DrumKit();
+        if (!this.click) {
+            this.click = new Tone.MembraneSynth({ pitchDecay: 0.01, octaves: 2, envelope: { attack: 0.001, decay: 0.12, sustain: 0 } }).toDestination();
+            this.click.volume.value = -8;
+        }
+        if (this.sampler || !this.events.some((e) => e.notes.some((n) => !n.drum))) return;
         const synthFallback = () => new Tone.PolySynth(Tone.Synth, { envelope: { attack: 0.01, decay: 0.2, sustain: 0.3, release: 1 } }).toDestination();
         try {
             this.sampler = await new Promise((resolve) => {
@@ -161,8 +193,6 @@ export class ScorePlayer {
         } catch {
             this.sampler = synthFallback();
         }
-        this.click = new Tone.MembraneSynth({ pitchDecay: 0.01, octaves: 2, envelope: { attack: 0.001, decay: 0.12, sustain: 0 } }).toDestination();
-        this.click.volume.value = -8;
     }
 
     // quartos de nota = semibreves * 4; o Transport trabalha em ticks (PPQ) e o BPM muda ao vivo
@@ -183,7 +213,10 @@ export class ScorePlayer {
             this._ids.push(Tone.Transport.schedule((time) => {
                 const secPerWhole = (60 / Tone.Transport.bpm.value) * 4;
                 const voices = ev.notes.filter((n) => !this.muted.has(n.part));
-                voices.forEach((n) => this.sampler.triggerAttackRelease(midiToName(n.midi), Math.max(0.12, n.dur * secPerWhole * 0.95), time));
+                voices.forEach((n) => {
+                    if (n.drum) this.kit?.trigger(n.drum, time);
+                    else this.sampler?.triggerAttackRelease(midiToName(n.midi), Math.max(0.12, n.dur * secPerWhole * 0.95), time);
+                });
                 Tone.Draw.schedule(() => this._moveCursorTo(i), time);
             }, `${tick}i`));
         });
@@ -239,6 +272,7 @@ export class ScorePlayer {
         this.pause();
         try { this.osmd.clear(); } catch { /* ignora */ }
         this.sampler?.dispose?.();
+        this.kit?.dispose?.();
         this.click?.dispose?.();
     }
 }
