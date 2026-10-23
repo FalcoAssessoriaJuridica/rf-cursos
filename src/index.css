@@ -763,3 +763,5 @@ html[data-theme='light'][data-bg='gravacao'] aside nav a:active {
 .dp-bar { position: absolute; left: 0; top: 0; width: 26px; border-radius: 9px; background: linear-gradient(180deg, rgba(16,185,129,.12), rgba(16,185,129,.34) 25%, rgba(16,185,129,.34) 75%, rgba(16,185,129,.12)); box-shadow: inset 0 0 0 1.5px rgba(5,150,105,.6); transition: transform 70ms ease-out; will-change: transform; }
 .dp-ball { position: absolute; left: 0; top: 0; width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #d1fae5 0%, #34d399 38%, #059669 100%); box-shadow: 0 5px 8px rgba(2,44,34,.35); will-change: transform; }
 .drum-paper [id^="cursorImg"] { visibility: hidden; }
+
+.dp-overlay.dp-seekable { pointer-events: auto; cursor: pointer; }

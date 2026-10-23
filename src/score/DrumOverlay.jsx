@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 
 // Acompanhamento visual da bateria: destaque na nota atual, bolinha que pula entre as figuras e a contagem (1 e 2 e...).
 // Fica por cima da partitura (que o OpenSheetMusicDisplay desenha) e usa a posição do áudio, não do cursor, por isso o movimento é suave.
-export default function DrumOverlay({ player, ready, playing, step, layoutKey }) {
+export default function DrumOverlay({ player, ready, playing, step, layoutKey, onSeek }) {
+    const rootRef = useRef(null);
     const barRef = useRef(null);
     const ballRef = useRef(null);
     const countRefs = useRef([]);
@@ -60,9 +61,21 @@ export default function DrumOverlay({ player, ready, playing, step, layoutKey })
         return () => cancelAnimationFrame(raf);
     }, [layout, playing, step, player]);
 
+    // clique em uma nota/compasso: devolve a posição (em semibreves) para quem controla o vídeo
+    const onClick = (e) => {
+        if (!onSeek || !layout) return;
+        const r = rootRef.current.getBoundingClientRect();
+        const x = e.clientX - r.left;
+        const y = e.clientY - r.top;
+        const inBand = layout.steps.filter((s) => y >= s.top - 110 && y <= s.top + s.h + 40);
+        const pool = inBand.length ? inBand : layout.steps;
+        const best = pool.reduce((a, b) => (Math.abs(b.cx - x) + Math.abs(b.top - y) * 0.05 < Math.abs(a.cx - x) + Math.abs(a.top - y) * 0.05 ? b : a));
+        onSeek(best.t);
+    };
+
     if (!layout) return null;
     return (
-        <div className="dp-overlay" aria-hidden>
+        <div ref={rootRef} className={`dp-overlay${onSeek ? ' dp-seekable' : ''}`} onClick={onClick} aria-hidden={!onSeek}>
             {layout.steps.map((s, i) => (s.label && (s.main || s.cx - (layout.steps[i - 1]?.line === s.line ? layout.steps[i - 1].cx : -99) > 15) ? (
                 <span key={i} ref={(el) => { countRefs.current[i] = el; }} className={`dp-count${s.main ? ' main' : ''}`} style={{ left: s.cx, top: s.top - 100 }}>{s.label}</span>
             ) : null))}

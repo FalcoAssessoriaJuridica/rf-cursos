@@ -227,3 +227,37 @@ export async function loadLibrary() {
         })
         .filter((c) => c.geral.length || c.aulas.length);
 }
+
+/* ───────── Sincronia com o vídeo da aula (SQL 0007) ───────── */
+// Partituras da aula que têm sincronia configurada. Tolerante: sem as colunas novas, devolve vazio.
+export async function listLessonSync(aulaId) {
+    if (!isRealId(aulaId)) return [];
+    const { data, error } = await supabase
+        .from(LINKS)
+        .select('id, sync_inicio, sync_bpm, sync_loop, partituras(id, titulo, arquivo_url, origem, limpar_anotacoes, compasso)')
+        .eq('aula_id', aulaId)
+        .not('sync_inicio', 'is', null);
+    if (error) return [];
+    return (data || []).filter((l) => l.partituras);
+}
+
+// Todas as partituras ligadas à aula (com a sincronia, quando houver), para o professor escolher qual sincronizar.
+export async function listLessonLinks(aulaId) {
+    if (!isRealId(aulaId)) return [];
+    let res = await supabase.from(LINKS).select('id, sync_inicio, sync_bpm, sync_loop, partituras(id, titulo, arquivo_url, origem, limpar_anotacoes, compasso)').eq('aula_id', aulaId);
+    if (res.error) res = await supabase.from(LINKS).select('id, partituras(id, titulo, arquivo_url, origem, limpar_anotacoes, compasso)').eq('aula_id', aulaId); // colunas ainda não criadas
+    return (res.data || []).filter((l) => l.partituras);
+}
+
+export async function saveSync(vinculoId, { inicio, bpm, loop }) {
+    const { error } = await supabase.from(LINKS).update({ sync_inicio: inicio, sync_bpm: bpm || null, sync_loop: !!loop }).eq('id', vinculoId);
+    if (error) {
+        if (isMissingTable(error)) throw new Error('A sincronia ainda não foi ativada no banco: rode o SQL 0007_partitura_sincronia_video.sql no Supabase.');
+        throw new Error(error.message);
+    }
+}
+
+export async function clearSync(vinculoId) {
+    const { error } = await supabase.from(LINKS).update({ sync_inicio: null, sync_bpm: null }).eq('id', vinculoId);
+    if (error) throw new Error(error.message);
+}

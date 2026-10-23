@@ -1,4 +1,5 @@
 import ScoreList from '../../components/ScoreList';
+import VideoSyncPanel from '../../components/VideoSyncPanel';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -37,6 +38,7 @@ export default function Player() {
     const [isDownloading, setIsDownloading] = useState({});
 
     const videoRef = useRef(null);
+    const iframeRef = useRef(null);
     const lastSaved = useRef(0);
 
     // `navigate` muda a cada navegação; guardamos numa ref para o curso NÃO ser recarregado ao trocar de aula
@@ -294,7 +296,7 @@ export default function Player() {
                                 />
                             )}
                             {media.kind === 'iframe' && (
-                                <iframe key={lesson.id} src={media.src} title={lesson.titulo} className="h-full w-full border-none" allow="autoplay; fullscreen" allowFullScreen />
+                                <iframe key={lesson.id} ref={iframeRef} src={media.src} title={lesson.titulo} className="h-full w-full border-none" allow="autoplay; fullscreen" allowFullScreen />
                             )}
                             {media.kind === 'none' && (
                                 <div className="flex h-full items-center justify-center">
@@ -310,6 +312,9 @@ export default function Player() {
                                 </div>
                             )}
                         </div>
+
+                        {/* Partitura de bateria acompanhando o vídeo (e, para o admin, o ajuste da sincronia) */}
+                        <VideoSyncPanel lesson={lesson} media={media} videoRef={videoRef} iframeRef={iframeRef} />
 
                         {/* Vídeos de terceiros (Drive etc.) não informam o tempo assistido: a conclusão é manual */}
                         {media.kind === 'iframe' && !cur?.concluida && (

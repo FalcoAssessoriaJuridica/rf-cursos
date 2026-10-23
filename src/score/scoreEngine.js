@@ -306,9 +306,16 @@ export class ScorePlayer {
     }
 
     positionWhole() {
+        if (this.ext) return this.ext(); // sincronizado com um vídeo: quem manda é o relógio do vídeo
         if (!this.playing) return this.events[this.index]?.t ?? 0;
         const ticks = Tone.Transport.getTicksAtTime(Math.max(0, this._audible()));
         return (this._t0 || 0) + ticks / (Tone.Transport.PPQ * 4);
+    }
+
+    // fim do exercício (último compasso completo), para repetir em laço
+    endWhole() {
+        const e = this.events[this.events.length - 1];
+        return e ? e.mstart + e.num / e.den : 0;
     }
 
     // posição de cada passo na tela e a contagem de cada um (1 e 2 e...), para o acompanhamento visual

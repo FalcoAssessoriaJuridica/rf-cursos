@@ -20,7 +20,7 @@ export function resolveMedia(lesson, startTime = 0) {
     if (id.includes('youtube.com') || id.includes('youtu.be')) {
         const m = id.match(/[?&]v=([^&]+)/) || id.match(/youtu\.be\/([^?]+)/) || id.match(/embed\/([^?]+)/);
         const ytId = m ? m[1] : id.split('/').pop();
-        return { kind: 'iframe', provider: 'youtube', src: `https://www.youtube.com/embed/${ytId}?autoplay=1${startTime > 0 ? `&start=${startTime}` : ''}` };
+        return { kind: 'iframe', provider: 'youtube', src: `https://www.youtube.com/embed/${ytId}?autoplay=1&enablejsapi=1${typeof location !== 'undefined' ? `&origin=${encodeURIComponent(location.origin)}` : ''}${startTime > 0 ? `&start=${startTime}` : ''}` };
     }
     if (id.includes('vimeo.com')) {
         const m = id.match(/vimeo\.com\/(\d+)/) || id.match(/video\/(\d+)/);
