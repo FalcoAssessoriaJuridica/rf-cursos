@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, useInView, useMotionValue, useReducedMotion, useSpring, useTransform } from 'framer-motion';
 import { Player } from '@remotion/player';
-import { ArrowRight, KeyRound, Lock, Music2, PlayCircle } from 'lucide-react';
+import { ArrowRight, KeyRound, Lock, Moon, Music2, PlayCircle, Sun } from 'lucide-react';
+import { useTheme } from '../lib/theme';
 import { HeroReel, HERO_REEL } from './reels/HeroReel';
 import { StaffReel, STAFF_REEL } from './reels/StaffReel';
 import capaJazz from '../assets/landing/capa-jazz.webp';
@@ -130,6 +131,7 @@ function ProgressRing() {
 
 export default function Landing() {
     const entry = useMemo(entryTarget, []);
+    const { theme, toggle: toggleTheme } = useTheme();
     const year = new Date().getFullYear();
 
     useEffect(() => {
@@ -150,6 +152,9 @@ export default function Landing() {
                     <a href="#cursos">Cursos</a>
                 </nav>
                 <div className="lp-nav-actions">
+                    <button type="button" onClick={toggleTheme} className="lp-themebtn" aria-label={theme === 'light' ? 'Ativar modo escuro' : 'Ativar modo claro'} title={theme === 'light' ? 'Modo escuro' : 'Modo claro'}>
+                        {theme === 'light' ? <Moon aria-hidden /> : <Sun aria-hidden />}
+                    </button>
                     <Link to={entry.to} className="lp-btn lp-btn-outline">{entry.to === '/login' ? 'Entrar' : 'Minha área'}</Link>
                 </div>
             </header>

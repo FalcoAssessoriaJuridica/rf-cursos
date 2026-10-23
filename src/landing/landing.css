@@ -31,6 +31,10 @@
 .lp-nav-links a { opacity: 0.85; transition: opacity 0.2s, color 0.2s; }
 .lp-nav-links a:hover { opacity: 1; color: var(--lp-gold); }
 .lp-nav-actions { display: flex; align-items: center; gap: 0.75rem; }
+.lp-themebtn { display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border-radius: 999px; border: 1px solid var(--glass-border); box-shadow: var(--glass-relief); background: transparent; color: inherit; cursor: pointer; transition: border-color 0.2s; }
+.lp-themebtn:hover { border-color: rgb(var(--c-primary) / 0.7); }
+.lp-themebtn:focus-visible { outline: 2px solid rgb(var(--c-primary)); outline-offset: 3px; }
+.lp-themebtn svg { width: 1.1rem; height: 1.1rem; }
 
 /* ── botões ── */
 .lp-btn {

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Camera, Check, Loader2, Trash2 } from 'lucide-react';
 import Avatar from '../../components/Avatar';
 import { loadProfile, saveProfile, uploadAvatar, removeAvatar } from '../../lib/profile';
+import { changePassword, MIN_PASSWORD, isDemoSession } from '../../lib/auth';
 
 const EXTRA_FIELDS = [
     { key: 'data_nascimento', label: 'Data de nascimento', type: 'date' },
@@ -23,6 +24,46 @@ function Field({ label, hint, children }) {
             {children}
             {hint && <span className="profile-hint block text-xs text-text-muted">{hint}</span>}
         </label>
+    );
+}
+
+// Troca de senha: pede a atual (reautentica) e a nova duas vezes. Não existe para as contas de demonstração (locais).
+function PasswordCard() {
+    const [cur, setCur] = useState('');
+    const [next, setNext] = useState('');
+    const [again, setAgain] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [msg, setMsg] = useState(null);
+
+    const submit = async (e) => {
+        e.preventDefault();
+        setMsg(null);
+        if (next !== again) { setMsg({ type: 'error', text: 'As duas senhas novas não são iguais.' }); return; }
+        setBusy(true);
+        try {
+            await changePassword(cur, next);
+            setCur(''); setNext(''); setAgain('');
+            setMsg({ type: 'ok', text: 'Senha alterada.' });
+        } catch (err) {
+            setMsg({ type: 'error', text: err.message });
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return (
+        <form onSubmit={submit} className="liquid-glass profile-card space-y-5 rounded-[2rem] p-6 md:p-8" aria-label="Alterar senha">
+            <h2 className="text-lg font-bold text-text">Alterar senha</h2>
+            <Field label="Senha atual"><input className="input-field" type="password" autoComplete="current-password" required value={cur} onChange={(e) => setCur(e.target.value)} /></Field>
+            <div className="grid gap-5 md:grid-cols-2">
+                <Field label="Senha nova" hint={`Mínimo de ${MIN_PASSWORD} caracteres.`}><input className="input-field" type="password" autoComplete="new-password" required minLength={MIN_PASSWORD} value={next} onChange={(e) => setNext(e.target.value)} /></Field>
+                <Field label="Repita a senha nova"><input className="input-field" type="password" autoComplete="new-password" required minLength={MIN_PASSWORD} value={again} onChange={(e) => setAgain(e.target.value)} /></Field>
+            </div>
+            <div className="flex flex-wrap items-center gap-4">
+                <button type="submit" disabled={busy} className="btn-primary flex h-12 items-center gap-2 px-8 disabled:opacity-60">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}{busy ? 'Salvando...' : 'Alterar senha'}</button>
+                {msg && <p role={msg.type === 'error' ? 'alert' : 'status'} className={msg.type === 'error' ? 'text-sm font-semibold text-red-500' : 'text-sm font-semibold text-green-600'}>{msg.text}</p>}
+            </div>
+        </form>
     );
 }
 
@@ -150,6 +191,8 @@ export default function Profile() {
                     </div>
                 </form>
             </div>
+
+            {!isDemoSession() && <PasswordCard />}
         </div>
     );
 }

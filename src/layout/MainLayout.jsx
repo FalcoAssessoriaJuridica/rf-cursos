@@ -7,6 +7,7 @@ import { Button } from '../components/Button';
 import ThemeToggle from '../components/ThemeToggle';
 import { DEMO_ENABLED } from '../lib/demoCourses';
 import Avatar from '../components/Avatar';
+import { signOut } from '../lib/auth';
 
 export default function MainLayout({ isAdmin = false }) {
     const location = useLocation();
@@ -24,7 +25,7 @@ export default function MainLayout({ isAdmin = false }) {
             document.body.classList.add('is-student');
         }
 
-        // Sistema usa autenticação customizada via localStorage
+        // O papel vem da sessão do Supabase (src/lib/auth.js), espelhado no localStorage
         const role = localStorage.getItem('rf_role');
 
 
@@ -34,8 +35,8 @@ export default function MainLayout({ isAdmin = false }) {
                 const { data } = await supabase
                     .from('perfis')
                     .select('nome_completo')
-                    .eq('email', 'falco.adv@gmail.com')
-                    .single();
+                    .eq('email', localStorage.getItem('rf_user_email') || '')
+                    .maybeSingle();
                 if (data?.nome_completo) {
                     setUserName(data.nome_completo.split(' ')[0]);
                 } else {
@@ -57,11 +58,7 @@ export default function MainLayout({ isAdmin = false }) {
     }, []);
 
     const handleLogout = async () => {
-        localStorage.removeItem('rf_role');
-        localStorage.removeItem('rf_user_id');
-        localStorage.removeItem('rf_user_email');
-        localStorage.removeItem('rf_user_name');
-        localStorage.removeItem('rf_return_admin');
+        await signOut(); // encerra a sessão no servidor e limpa o espelho local
         navigate('/login');
     };
 

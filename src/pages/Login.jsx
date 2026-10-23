@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { supabase } from '../lib/supabase';
+import { Link } from 'react-router-dom';
+import { signIn } from '../lib/auth';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { Mail, Lock, ChevronRight } from 'lucide-react';
 import { findDemoStudentByLogin } from '../lib/demoCourses';
 import ThemeToggle from '../components/ThemeToggle';
-import { verifyAdminPassword } from '../lib/adminAuth';
 
 export default function Login() {
     const navigate = useNavigate();
@@ -27,13 +27,7 @@ export default function Login() {
         setError('');
 
         try {
-            if (email === 'falco.adv@gmail.com' && (await verifyAdminPassword(password))) {
-                localStorage.setItem('rf_role', 'admin');
-                navigate('/admin');
-                return;
-            }
-
-            // Alunos de demonstração (locais)
+            // Alunos de demonstração (locais; só existem em desenvolvimento ou com VITE_ENABLE_DEMO)
             const demo = findDemoStudentByLogin(email, password);
             if (demo) {
                 localStorage.setItem('rf_role', 'student');
@@ -44,28 +38,11 @@ export default function Login() {
                 return;
             }
 
-            const { data: profile, error: pError } = await supabase
-                .from('perfis')
-                .select('*')
-                .eq('email', email)
-                .eq('senha', password)
-                .single();
-
-            if (pError || !profile) {
-                setError('Acesso negado. Verifique suas credenciais.');
-                return;
-            }
-
-            localStorage.setItem('rf_role', 'student');
-            localStorage.setItem('rf_user_id', profile.id);
-            localStorage.setItem('rf_user_email', profile.email);
-            localStorage.setItem('rf_user_name', profile.nome_completo);
-
-            navigate('/student');
-
+            // Supabase Auth: a senha é verificada no servidor e o papel (admin/aluno) vem do token, não do navegador
+            const { role } = await signIn(email, password);
+            navigate(role === 'admin' ? '/admin' : '/student');
         } catch (err) {
-            setError('Ocorreu um erro ao tentar acessar.');
-            console.error(err);
+            setError(err.message || 'Ocorreu um erro ao tentar acessar.');
         } finally {
             setLoading(false);
         }
@@ -163,6 +140,10 @@ export default function Login() {
                             </span>
                         </button>
                     </form>
+
+                    <p className="mt-5 text-center text-sm">
+                        <Link to="/recuperar-senha" className="text-white/60 underline underline-offset-4 hover:text-primary">Esqueci minha senha</Link>
+                    </p>
 
                     <div className="mt-8 text-center">
                         <p className="text-[10px] text-white/40 uppercase tracking-widest leading-loose">

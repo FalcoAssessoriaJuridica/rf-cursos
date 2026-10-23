@@ -8,6 +8,18 @@ import { Plus, Search, MoreVertical, ShieldCheck, ShieldOff, Calendar, UserPlus,
 import { cn } from '../../lib/utils';
 import { DEMO_COURSES, DEMO_STUDENTS, DEMO_PASSWORD, getDemoEnrollments, setDemoEnrollments, readDemoProgress, accessStatus, accessLabel, addDaysISO } from '../../lib/demoCourses';
 
+// Criar/editar/excluir contas exige service_role: roda na Edge Function `admin-students` (só responde a administradores).
+async function callAdmin(action, payload) {
+    const { data, error } = await supabase.functions.invoke('admin-students', { body: { action, ...payload } });
+    if (error) {
+        let msg = error.message;
+        try { const j = await error.context?.json?.(); if (j?.error) msg = j.error; } catch { /* mantém a mensagem */ }
+        throw new Error(msg);
+    }
+    if (data?.error) throw new Error(data.error);
+    return data;
+}
+
 export default function Students() {
     const navigate = useNavigate();
     const [students, setStudents] = useState([]);
@@ -24,6 +36,7 @@ export default function Students() {
         senha: ''
     });
     const [courses, setCourses] = useState([]);
+    const [credentials, setCredentials] = useState(null); // acesso recém-criado (senha temporária mostrada uma vez)
     const [demoTick, setDemoTick] = useState(0); // força releitura dos alunos demo após editar acesso
     const [demoEditing, setDemoEditing] = useState(null); // aluno demo em edição de acesso
     const [demoDraft, setDemoDraft] = useState([]);
@@ -104,7 +117,7 @@ export default function Students() {
                 telefone: student.telefone || '',
                 data_expiracao: inscr?.data_expiracao || '',
                 curso_ids: student.inscricoes?.map(i => i.curso_id) || [],
-                senha: student.senha || ''
+                senha: '' // a senha nunca é lida nem exibida; aqui só se define uma nova
             });
         } else {
             setEditingId(null);
@@ -119,24 +132,20 @@ export default function Students() {
             setLoading(true);
 
             if (editingId) {
-                // 1. Update Profile
-                const { error: pError } = await supabase
-                    .from('perfis')
-                    .update({
-                        nome_completo: newStudent.nome_completo,
-                        email: newStudent.email,
-                        telefone: newStudent.telefone,
-                        senha: newStudent.senha
-                    })
-                    .eq('id', editingId);
+                const current = students.find(s => s.id === editingId);
+                // 1. Conta e perfil (e-mail e senha só mudam pela função)
+                await callAdmin('update', {
+                    id: editingId,
+                    nome_completo: newStudent.nome_completo,
+                    telefone: newStudent.telefone,
+                    email: newStudent.email && newStudent.email !== current?.email ? newStudent.email : undefined,
+                    password: newStudent.senha || undefined,
+                });
 
-                if (pError) throw pError;
-
-                // 2. Update Inscriptions
-                const existingInscriptions = students.find(s => s.id === editingId)?.inscricoes || [];
+                // 2. Matrículas (o administrador escreve direto, pela regra de acesso do banco)
+                const existingInscriptions = current?.inscricoes || [];
                 const existingCourseIds = existingInscriptions.map(i => i.curso_id);
 
-                // Add new ones
                 const idsToAdd = newStudent.curso_ids.filter(id => !existingCourseIds.includes(id));
                 if (idsToAdd.length > 0) {
                     const { error: insError } = await supabase
@@ -150,7 +159,6 @@ export default function Students() {
                     if (insError) throw insError;
                 }
 
-                // Remove deselected
                 const idsToRemove = existingCourseIds.filter(id => !newStudent.curso_ids.includes(id));
                 if (idsToRemove.length > 0) {
                     const { error: delError } = await supabase
@@ -161,7 +169,6 @@ export default function Students() {
                     if (delError) throw delError;
                 }
 
-                // Update expiration date for all current inscriptions
                 if (newStudent.curso_ids.length > 0) {
                     await supabase
                         .from('inscricoes')
@@ -171,51 +178,27 @@ export default function Students() {
 
                 alert("Dados do aluno atualizados com sucesso!");
             } else {
-                // 1. Create Profile
-                const { data: profile, error: pError } = await supabase
-                    .from('perfis')
-                    .insert([{
-                        nome_completo: newStudent.nome_completo,
-                        email: newStudent.email,
-                        telefone: newStudent.telefone,
-                        senha: newStudent.senha
-                    }])
-                    .select()
-                    .single();
+                const res = await callAdmin('create', {
+                    nome_completo: newStudent.nome_completo,
+                    email: newStudent.email,
+                    telefone: newStudent.telefone,
+                    password: newStudent.senha || undefined,
+                    cursos: newStudent.curso_ids.map(id => ({ curso_id: id, data_expiracao: newStudent.data_expiracao || null, status: 'ativo' })),
+                });
 
-                if (pError) throw pError;
-
-                // 2. Create Inscriptions if courses selected
-                if (newStudent.curso_ids.length > 0) {
-                    const { error: iError } = await supabase
-                        .from('inscricoes')
-                        .insert(newStudent.curso_ids.map(courseId => ({
-                            perfil_id: profile.id,
-                            curso_id: courseId,
-                            data_expiracao: newStudent.data_expiracao || null,
-                            status: 'ativo'
-                        })));
-                    if (iError) throw iError;
-                }
-
-                // 3. Generate WhatsApp Message
-                const expirationDate = newStudent.data_expiracao ? new Date(newStudent.data_expiracao).toLocaleDateString() : 'Vitalício';
-                const whatsMessage = `Olá ${newStudent.nome_completo}! Boas-vindas à RF MUSIC. Seu acesso ao www.falcotech.com.br/rfcursos está liberado. Usuário: ${newStudent.email}. Senha: ${newStudent.senha}. Acesso válido até: ${expirationDate}.`;
-
-                console.log("WhatsApp Web Link:", `https://wa.me/${newStudent.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(whatsMessage)}`);
-                alert("Aluno cadastrado! Mensagem de boas-vindas gerada no console.");
+                // Mensagem de boas-vindas: a senha é a que você digitou ou a temporária gerada agora (aparece só desta vez)
+                const senha = newStudent.senha || res.senha_temporaria;
+                const expirationDate = newStudent.data_expiracao ? new Date(newStudent.data_expiracao + 'T12:00:00').toLocaleDateString('pt-BR') : 'Vitalício';
+                const message = `Olá ${newStudent.nome_completo}! Boas-vindas à RF MUSIC. Seu acesso ao ${window.location.origin} está liberado. Usuário: ${newStudent.email}. Senha temporária: ${senha}. Você pode trocá-la depois em "Meu perfil" ou em "Esqueci minha senha". Acesso válido até: ${expirationDate}.`;
+                const phone = (newStudent.telefone || '').replace(/\D/g, '');
+                setCredentials({ nome: newStudent.nome_completo, email: newStudent.email, senha, message, link: phone ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}` : null });
             }
 
-            console.log("Creation/Edit successful, refreshing students list...");
             setIsModalOpen(false);
             fetchStudents();
         } catch (error) {
             console.error("Error in handleSubmit:", error);
-            if (error.message?.includes("'senha' column")) {
-                alert("⚠️ AÇÃO NECESSÁRIA NO BANCO DE DADOS:\n\nA coluna 'senha' não foi encontrada na tabela 'perfis'.\n\nPara resolver isso, copie e execute este comando no 'SQL Editor' do seu painel Supabase:\n\nALTER TABLE perfis ADD COLUMN senha text;");
-            } else {
-                alert("Erro ao processar: " + error.message);
-            }
+            alert("Erro ao processar: " + error.message);
         } finally {
             setLoading(false);
         }
@@ -248,23 +231,12 @@ export default function Students() {
     };
 
     const handleDelete = async (student) => {
-        const confirmed = window.confirm(`Tem certeza que deseja apagar os dados de ${student.nome_completo}? Esta ação não pode ser desfeita.`);
+        const confirmed = window.confirm(`Tem certeza que deseja apagar a conta e os dados de ${student.nome_completo}? Esta ação não pode ser desfeita.`);
 
         if (confirmed) {
             try {
                 setLoading(true);
-
-                // 1. Delete associated data first (Cascade simulation if RLS doesn't do it)
-                // Delete inscriptions
-                await supabase.from('inscricoes').delete().eq('perfil_id', student.id);
-                // Delete progress records
-                await supabase.from('progresso').delete().eq('perfil_id', student.id);
-
-                // 2. Delete Profile
-                const { error } = await supabase.from('perfis').delete().eq('id', student.id);
-
-                if (error) throw error;
-
+                await callAdmin('delete', { id: student.id }); // apaga progresso, matrículas, perfil e a conta de acesso
                 alert("Aluno removido com sucesso!");
                 fetchStudents();
             } catch (err) {
@@ -511,6 +483,26 @@ export default function Students() {
             </Card>
 
             {/* Modal de Cadastro/Edição */}
+            {credentials && (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 p-4" role="dialog" aria-label="Acesso criado">
+                    <Card className="w-full max-w-lg border-primary/30">
+                        <CardHeader><CardTitle>Aluno cadastrado</CardTitle></CardHeader>
+                        <CardContent className="space-y-3 text-sm">
+                            <p>Envie estes dados para <b>{credentials.nome}</b>. A senha temporária <b>não aparece de novo</b> depois que você fechar esta janela.</p>
+                            <div className="rounded-lg border border-white/10 p-3 space-y-1">
+                                <p>Usuário: <b>{credentials.email}</b></p>
+                                <p>Senha temporária: <b className="font-mono tracking-wide">{credentials.senha}</b></p>
+                            </div>
+                            <div className="flex flex-wrap gap-2 pt-1">
+                                <Button type="button" variant="secondary" onClick={() => navigator.clipboard?.writeText(credentials.message)}>Copiar mensagem</Button>
+                                {credentials.link && <a href={credentials.link} target="_blank" rel="noreferrer"><Button type="button">Abrir no WhatsApp</Button></a>}
+                                <Button type="button" variant="ghost" onClick={() => setCredentials(null)}>Fechar</Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
+
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
                     <Card className="w-full max-w-lg border-primary/30">
@@ -524,15 +516,16 @@ export default function Students() {
                                 <Input placeholder="E-mail" type="email" required value={newStudent.email} onChange={e => setNewStudent({ ...newStudent, email: e.target.value })} />
                                 <Input placeholder="Telefone (WhatsApp)" value={newStudent.telefone} onChange={e => setNewStudent({ ...newStudent, telefone: e.target.value })} />
                                 <div className="space-y-1">
-                                    <label className="text-xs text-text-muted uppercase font-bold tracking-wider">Senha de Acesso</label>
+                                    <label className="text-xs text-text-muted uppercase font-bold tracking-wider">{editingId ? 'Nova senha (opcional)' : 'Senha inicial (opcional)'}</label>
                                     <Input
-                                        placeholder="Defina a senha do aluno"
+                                        placeholder={editingId ? 'Deixe em branco para não alterar' : 'Em branco = gerar senha temporária'}
                                         type="text"
-                                        required={!editingId}
+                                        minLength={8}
+                                        autoComplete="off"
                                         value={newStudent.senha}
                                         onChange={e => setNewStudent({ ...newStudent, senha: e.target.value })}
                                     />
-                                    {editingId && <p className="text-[10px] text-text-muted italic">Deixe como está ou mude para alterar a senha do aluno.</p>}
+                                    <p className="text-[10px] text-text-muted italic">{editingId ? 'A senha atual não é exibida em nenhum lugar. Informe uma só se quiser trocá-la (mínimo de 8 caracteres).' : 'Mínimo de 8 caracteres. Se deixar em branco, geramos uma senha temporária e mostramos uma vez.'}</p>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-1">

@@ -1,8 +1,9 @@
 # Migração para Supabase Auth + RLS — desenho
 
-> **Status: proposta.** Nada aqui foi aplicado. Os SQLs em `supabase/migrations/`, a função em
-> `supabase/functions/admin-students/` e o script `scripts/import-auth-users.mjs` são **rascunhos**
-> escritos a partir do que o código usa; antes de rodar, confira contra o schema real (§9).
+> **Status (23/10/2026): implementado no código e ensaiado num Supabase local; falta aplicar em produção.**
+> O passo a passo de produção, com verificação e reversão, está em [`virada-login-producao.md`](virada-login-producao.md).
+> O front já usa o Supabase Auth (`src/lib/auth.js`, `Login.jsx`, `RecuperarSenha.jsx`, `RedefinirSenha.jsx`, `Students.jsx` via função).
+> Este documento fica como o desenho e a justificativa.
 
 ## 1. Por que migrar
 

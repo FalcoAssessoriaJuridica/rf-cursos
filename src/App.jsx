@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import AuthLayout from './layout/AuthLayout';
 import MainLayout from './layout/MainLayout';
 import Login from './pages/Login';
+import RecuperarSenha from './pages/RecuperarSenha';
+import RedefinirSenha from './pages/RedefinirSenha';
 import Dashboard from './pages/admin/Dashboard';
 import Students from './pages/admin/Students';
 import Courses from './pages/admin/Courses';
@@ -16,8 +18,8 @@ import Partituras from './pages/student/Partituras';
 import PartituraView from './pages/student/PartituraView';
 const Landing = React.lazy(() => import('./landing/Landing'));
 
-// Guardas de rota. Valem para a interface: a sessão fica no localStorage, então a proteção
-// dos dados em si precisa ser feita no servidor (regras/RLS do Supabase).
+// Guardas de rota. Decidem só o que mostrar: a sessão é validada em src/lib/auth.js (initAuth) antes de desenhar,
+// e quem protege os dados é o banco (RLS do Supabase), que confere o JWT a cada consulta.
 const getRole = () => {
   try {
     return localStorage.getItem('rf_role');
@@ -70,6 +72,8 @@ function App() {
           <Route element={<AuthLayout />}>
             <Route path="/login" element={<Login />} />
           </Route>
+          <Route path="/recuperar-senha" element={<RecuperarSenha />} />
+          <Route path="/redefinir-senha" element={<RedefinirSenha />} />
 
           {/* Admin Routes */}
           <Route path="/admin" element={<AdminRoute><MainLayout isAdmin={true} /></AdminRoute>}>

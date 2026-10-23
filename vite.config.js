@@ -1,12 +1,7 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
-import { pbkdf2Sync } from 'node:crypto'
 import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-
-// Parâmetros do hash da senha de admin (derivado no build; o texto puro nunca vai para o bundle)
-const ADMIN_SALT = 'rf-cursos/admin/v1'
-const ADMIN_ITERATIONS = 120000
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -18,12 +13,6 @@ export default defineConfig(({ mode }) => {
   // em produção só com VITE_ENABLE_DEMO=true.
   let outDir = ''
   const demoEnabled = mode === 'development' || env.VITE_ENABLE_DEMO === 'true'
-
-  // Sem senha configurada = login de admin desativado (não há mais senha padrão).
-  const password = env.VITE_ADMIN_MASTER_PASSWORD || ''
-  const adminHash = password
-    ? pbkdf2Sync(password, ADMIN_SALT, ADMIN_ITERATIONS, 32, 'sha256').toString('hex')
-    : ''
 
   return {
     // uma única cópia do React (o Remotion Player da landing usa hooks do React da aplicação)
@@ -76,9 +65,6 @@ export default defineConfig(({ mode }) => {
     ],
     define: {
       __DEMO_ENABLED__: JSON.stringify(demoEnabled),
-      __ADMIN_HASH__: JSON.stringify(adminHash),
-      __ADMIN_SALT__: JSON.stringify(ADMIN_SALT),
-      __ADMIN_ITERATIONS__: JSON.stringify(ADMIN_ITERATIONS),
     },
     server: {
       proxy: {
@@ -91,7 +77,8 @@ export default defineConfig(({ mode }) => {
           headers: { 'X-API-Key': omrKey },
         },
         '/supabase-api': {
-          target: 'https://bghvzdfikfhceekoxtxg.supabase.co',
+          // padrão: produção; para ensaiar em um Supabase local, rode com VITE_SUPABASE_URL=http://127.0.0.1:58321
+          target: env.VITE_SUPABASE_URL || 'https://bghvzdfikfhceekoxtxg.supabase.co',
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/supabase-api/, ''),
         },
