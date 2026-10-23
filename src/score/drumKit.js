@@ -57,19 +57,20 @@ export class DrumKit {
         this.crash.volume.value = -15; this.ride.volume.value = -14;
     }
 
-    trigger(voice, time) {
+    // vel: 0 a 1 (acento = 1, normal = 0,8, fantasma = 0,28)
+    trigger(voice, time, vel = 0.8) {
         switch (voice) {
-            case 'kick': this.kick.triggerAttackRelease('C1', 0.3, time); break;
-            case 'snare': this.snareNoise.triggerAttackRelease(0.15, time); this.snareBody.triggerAttackRelease('E2', 0.1, time); break;
-            case 'rim': this.rim.triggerAttackRelease('A3', 0.04, time); break;
-            case 'tomL': this.tom.triggerAttackRelease('F2', 0.3, time); break;
-            case 'tomM': this.tom.triggerAttackRelease('A2', 0.3, time); break;
-            case 'tomH': this.tom.triggerAttackRelease('D3', 0.3, time); break;
-            case 'hatO': this.hatO.triggerAttackRelease('C5', 0.3, time); break;
-            case 'hatP': this.hatP.triggerAttackRelease('C5', 0.03, time); break;
-            case 'crash': this.crash.triggerAttackRelease('C4', 1.2, time); break;
-            case 'ride': this.ride.triggerAttackRelease('E4', 0.6, time); break;
-            default: this.hatC.triggerAttackRelease('C5', 0.05, time);
+            case 'kick': this.kick.triggerAttackRelease('C1', 0.3, time, vel); break;
+            case 'snare': this.snareNoise.triggerAttackRelease(0.15, time, vel); this.snareBody.triggerAttackRelease('E2', 0.1, time, vel); break;
+            case 'rim': this.rim.triggerAttackRelease('A3', 0.04, time, vel); break;
+            case 'tomL': this.tom.triggerAttackRelease('F2', 0.3, time, vel); break;
+            case 'tomM': this.tom.triggerAttackRelease('A2', 0.3, time, vel); break;
+            case 'tomH': this.tom.triggerAttackRelease('D3', 0.3, time, vel); break;
+            case 'hatO': this.hatO.triggerAttackRelease('C5', 0.3, time, vel); break;
+            case 'hatP': this.hatP.triggerAttackRelease('C5', 0.03, time, vel); break;
+            case 'crash': this.crash.triggerAttackRelease('C4', 1.2, time, vel); break;
+            case 'ride': this.ride.triggerAttackRelease('E4', 0.6, time, vel); break;
+            default: this.hatC.triggerAttackRelease('C5', 0.05, time, vel);
         }
     }
 

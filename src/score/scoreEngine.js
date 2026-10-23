@@ -1,6 +1,6 @@
 // Motor da partitura: carrega MusicXML/MXL com o OpenSheetMusicDisplay, extrai a linha do tempo (notas por posição do cursor)
 // e toca com Tone.js, movendo o cursor em sincronia. Aceita 1 pauta (clave de Sol, solo/melodia) ou várias partes.
-import { OpenSheetMusicDisplay } from 'opensheetmusicdisplay';
+import { OpenSheetMusicDisplay, ArticulationEnum } from 'opensheetmusicdisplay';
 import * as Tone from 'tone';
 import JSZip from 'jszip';
 import { DrumKit, drumVoice } from './drumKit';
@@ -162,12 +162,21 @@ export class ScorePlayer {
                     }
                     if (this.drum.parts.has(part)) {
                         const ins = this.drum.instruments.get(n.playbackInstrumentId) || {};
-                        notes.push({ drum: drumVoice({ name: ins.name, midiUnpitched: ins.midiUnpitched, shown: n.halfTone + 12 }), dur, part: part < 0 ? 0 : part });
+                        const accent = (ve.Articulations || []).some((a) => a.articulationEnum === (ArticulationEnum?.accent ?? 0));
+                        const ghost = /ghost/i.test(ins.name || '');
+                        const grace = !!(n.IsGraceNote || ve.IsGrace);
+                        notes.push({
+                            drum: drumVoice({ name: ins.name, midiUnpitched: ins.midiUnpitched, shown: n.halfTone + 12 }), dur, part: part < 0 ? 0 : part,
+                            vel: grace ? 0.5 : ghost ? 0.28 : accent ? 1 : 0.8, grace, roll: !!n.TremoloInfo,
+                        });
                     } else {
                         notes.push({ midi: n.halfTone + 12, dur, part: part < 0 ? 0 : part });
                     }
                 }
             }
+            // notas de graça (flam/drag) soam um pouco antes da nota principal, a mais próxima por último
+            const gr = notes.filter((x) => x.grace);
+            gr.forEach((x, i) => { x.pre = -0.045 * (gr.length - i); x.dur = 0.0625; });
             events.push({ t, notes });
             it.moveToNext();
         }
@@ -214,8 +223,15 @@ export class ScorePlayer {
                 const secPerWhole = (60 / Tone.Transport.bpm.value) * 4;
                 const voices = ev.notes.filter((n) => !this.muted.has(n.part));
                 voices.forEach((n) => {
-                    if (n.drum) this.kit?.trigger(n.drum, time);
-                    else this.sampler?.triggerAttackRelease(midiToName(n.midi), Math.max(0.12, n.dur * secPerWhole * 0.95), time);
+                    if (n.drum) {
+                        const at = Math.max(time + (n.pre || 0), Tone.now());
+                        if (n.roll && !n.grace) {
+                            // rufo (buzz): 32 notas por semibreve, enquanto durar a nota, perdendo força
+                            const step = secPerWhole / 32;
+                            const hits = Math.max(2, Math.min(24, Math.floor((n.dur * secPerWhole) / step)));
+                            for (let h = 0; h < hits; h += 1) this.kit?.trigger(n.drum, time + h * step, Math.max(0.3, n.vel * (1 - h * 0.03)));
+                        } else this.kit?.trigger(n.drum, at, n.vel);
+                    } else this.sampler?.triggerAttackRelease(midiToName(n.midi), Math.max(0.12, n.dur * secPerWhole * 0.95), time);
                 });
                 Tone.Draw.schedule(() => this._moveCursorTo(i), time);
             }, `${tick}i`));
