@@ -35,7 +35,8 @@ export function drumVoice({ name = '', midiUnpitched = null, shown = null }) {
     return 'snare';
 }
 
-export class DrumKit {
+// Bateria sintetizada: usada só no aro (side stick), que o kit gravado não traz, e como reserva se as amostras não carregarem.
+export class SynthKit {
     constructor() {
         const limiter = new Tone.Limiter(-2).toDestination();
         const out = new Tone.Gain(0.5).connect(limiter);
@@ -75,4 +76,71 @@ export class DrumKit {
     }
 
     dispose() { this.nodes.forEach((n) => { try { n.dispose(); } catch { /* ignora */ } }); }
+}
+
+// Bateria acústica de verdade: MuldjordKit (Lars Muldjord, CC BY 4.0), amostras em /drums/muldjord (créditos em CREDITOS.txt).
+// Cada peça tem 3 forças (suave, média, forte) e, no bumbo, na caixa e nos pratos, duas fontes que se alternam para não soar "metralhadora".
+const BASE = '/drums/muldjord/';
+// equilíbrio entre as peças (as amostras vêm normalizadas pelo mais forte de cada uma)
+const TRIM = { kick: 1.1, snare: 1.5, hatC: 1.6, hatO: 1.3, hatP: 4, crash: 1.4, ride: 1.5, bell: 1.5, tomH: 1.1, tomM: 1.1, tomL: 1.1 };
+
+export class DrumKit {
+    constructor() {
+        this.synth = new SynthKit();   // aro + reserva
+        this.samples = null;           // voz -> [{ buf, layer }]
+        this.rr = {};                  // rodízio por voz e camada
+        this.openHat = null;           // chimbal aberto soando, para o chimbal fechado "abafar"
+        // compressor + limitador: vários golpes fortes no mesmo instante (bumbo + prato + caixa) não podem estourar
+        const limiter = new Tone.Limiter(-1.5).toDestination();
+        const makeup = new Tone.Gain(1).connect(limiter);
+        const comp = new Tone.Compressor({ threshold: -16, ratio: 8, attack: 0.002, release: 0.18 }).connect(makeup);
+        this.out = new Tone.Gain(0.85).connect(comp);
+        this.nodes = [this.out, comp, makeup, limiter];
+    }
+
+    async load() {
+        try {
+            const manifest = await (await fetch(`${BASE}kit.json`)).json();
+            const entries = await Promise.all(Object.entries(manifest).map(async ([voice, list]) => [
+                voice,
+                await Promise.all(list.map(async ({ file, layer }) => ({ layer, buf: await Tone.ToneAudioBuffer.fromUrl(`${BASE}${file}`) }))),
+            ]));
+            this.samples = Object.fromEntries(entries);
+        } catch {
+            this.samples = null; // sem rede ou arquivos ausentes: cai na bateria sintetizada
+        }
+        return !!this.samples;
+    }
+
+    _pick(voice, vel) {
+        const list = this.samples?.[voice];
+        if (!list?.length) return null;
+        const want = vel < 0.6 ? 0 : vel < 0.9 ? 1 : 2;
+        const layers = [...new Set(list.map((x) => x.layer))].sort();
+        const layer = layers.reduce((a, b) => (Math.abs(b - want) < Math.abs(a - want) ? b : a));
+        const pool = list.filter((x) => x.layer === layer);
+        const k = `${voice}${layer}`;
+        this.rr[k] = ((this.rr[k] ?? -1) + 1) % pool.length;
+        return pool[this.rr[k]];
+    }
+
+    // vel: 0 a 1 (acento = 1, normal = 0,8, fantasma = 0,28, nota de graça = 0,5)
+    trigger(voice, time, vel = 0.8) {
+        const map = { rim: null, hatP: 'hatP' };
+        const pick = voice === 'rim' ? null : this._pick(map[voice] || voice, vel);
+        if (!pick) { this.synth.trigger(voice, time, vel); return; }
+        const src = new Tone.ToneBufferSource(pick.buf);
+        const g = new Tone.Gain((0.62 + 0.38 * vel) * (TRIM[map[voice] || voice] ?? 1)).connect(this.out);
+        src.connect(g);
+        src.start(time);
+        src.onended = () => { try { src.dispose(); g.dispose(); } catch { /* ignora */ } };
+        if (voice === 'hatC' || voice === 'hatP') {
+            if (this.openHat) { this.openHat.gain.cancelScheduledValues(time); this.openHat.gain.setTargetAtTime(0, time, 0.015); this.openHat = null; }
+        } else if (voice === 'hatO') this.openHat = g;
+    }
+
+    dispose() {
+        this.nodes.forEach((n) => { try { n.dispose(); } catch { /* ignora */ } });
+        this.synth.dispose();
+    }
 }

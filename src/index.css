@@ -748,3 +748,18 @@ html[data-theme='light'][data-bg='gravacao'] aside nav a:active {
   box-shadow: var(--glass-relief), 0 14px 28px -18px rgb(0 0 0 / 0.55);
 }
 .score-paper { cursor: default; }
+
+/* ───── Player de bateria (acompanhamento visual) ───── */
+.drum-paper { background: #e7eef6; color: #0f172a; }
+.drum-paper svg { color: #0f172a; }
+.dp-wrap { position: relative; padding-top: 70px; }
+.dp-overlay { position: absolute; left: 0; top: 70px; width: 100%; height: calc(100% - 70px); pointer-events: none; z-index: 5; }
+.dp-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.dp-title { font-weight: 800; font-size: 1.15rem; letter-spacing: -0.01em; color: #1e293b; }
+.dp-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: #fff; box-shadow: 0 1px 0 rgba(255,255,255,.9) inset, 0 2px 6px rgba(15,23,42,.18); font-weight: 800; color: #0f172a; font-variant-numeric: tabular-nums; }
+.dp-count { position: absolute; transform: translateX(-50%); font-weight: 700; font-size: 13px; line-height: 1; color: #475569; transition: color 80ms, transform 80ms; }
+.dp-count.main { font-size: 20px; font-weight: 800; color: #0f172a; }
+.dp-count.on { color: #059669; transform: translateX(-50%) scale(1.25); }
+.dp-bar { position: absolute; left: 0; top: 0; width: 26px; border-radius: 9px; background: linear-gradient(180deg, rgba(16,185,129,.12), rgba(16,185,129,.34) 25%, rgba(16,185,129,.34) 75%, rgba(16,185,129,.12)); box-shadow: inset 0 0 0 1.5px rgba(5,150,105,.6); transition: transform 70ms ease-out; will-change: transform; }
+.dp-ball { position: absolute; left: 0; top: 0; width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #d1fae5 0%, #34d399 38%, #059669 100%); box-shadow: 0 5px 8px rgba(2,44,34,.35); will-change: transform; }
+.drum-paper [id^="cursorImg"] { visibility: hidden; }

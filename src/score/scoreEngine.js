@@ -4,6 +4,7 @@ import { OpenSheetMusicDisplay, ArticulationEnum } from 'opensheetmusicdisplay';
 import * as Tone from 'tone';
 import JSZip from 'jszip';
 import { DrumKit, drumVoice } from './drumKit';
+import { countLabel, tupletContext } from './counts';
 
 // piano de amostras (Salamander) hospedado pelo Tone.js; sem rede cai num sintetizador
 const SAMPLE_BASE = 'https://tonejs.github.io/audio/salamander/';
@@ -114,6 +115,7 @@ export class ScorePlayer {
         this.metronome = false;
         this.playing = false;
         this._ids = [];
+        this.disposed = false;
         this.sampler = null;
         this.kit = null;
         this.drum = { parts: new Set(), instruments: new Map() };
@@ -123,12 +125,17 @@ export class ScorePlayer {
     async load(source, opts = {}) {
         const { xml, hasTime } = await readScoreXml(source, opts);
         this.drum = readDrumInfo(xml);
+        const isDrums = this.drum.parts.size > 0;
+        this.osmd.zoom = isDrums ? 1.3 : 1; // notação de bateria maior, mais fácil de acompanhar
+        // espaço entre as linhas para caber a contagem e a bolinha acima de cada sistema
+        if (isDrums) this.osmd.EngravingRules.MinimumDistanceBetweenSystems = 14;
         await this.osmd.load(xml);
+        if (this.disposed) return { parts: [], steps: 0, bpm: this.baseBpm, hasTime, hasDrums: false }; // descartado enquanto carregava: não desenha
         this.osmd.render();
         this.osmd.cursor.show();
         this._extract();
         this.index = 0;
-        return { parts: this.parts, steps: this.events.length, bpm: this.baseBpm, hasTime };
+        return { parts: this.parts, steps: this.events.length, bpm: this.baseBpm, hasTime, hasDrums: this.drum.parts.size > 0 };
     }
 
     _extract() {
@@ -177,7 +184,9 @@ export class ScorePlayer {
             // notas de graça (flam/drag) soam um pouco antes da nota principal, a mais próxima por último
             const gr = notes.filter((x) => x.grace);
             gr.forEach((x, i) => { x.pre = -0.045 * (gr.length - i); x.dur = 0.0625; });
-            events.push({ t, notes });
+            const m = it.CurrentMeasure;
+            const ts = m?.ActiveTimeSignature;
+            events.push({ t, notes, mstart: m?.AbsoluteTimestamp?.RealValue ?? 0, num: ts?.Numerator ?? 4, den: ts?.Denominator ?? 4 });
             it.moveToNext();
         }
         cur.reset();
@@ -187,7 +196,11 @@ export class ScorePlayer {
 
     async _ensureAudio() {
         await Tone.start();
-        if (!this.kit && this.events.some((e) => e.notes.some((n) => n.drum))) this.kit = new DrumKit();
+        if (!this.kit && this.events.some((e) => e.notes.some((n) => n.drum))) {
+            const kit = new DrumKit();
+            await kit.load();
+            this.kit = kit;
+        }
         if (!this.click) {
             this.click = new Tone.MembraneSynth({ pitchDecay: 0.01, octaves: 2, envelope: { attack: 0.001, decay: 0.12, sustain: 0 } }).toDestination();
             this.click.volume.value = -8;
@@ -216,6 +229,7 @@ export class ScorePlayer {
         this._clearSchedule();
         Tone.Transport.bpm.value = this.baseBpm * this.speed;
         const t0 = this.events[fromIndex]?.t ?? 0;
+        this._t0 = t0;
         this.events.forEach((ev, i) => {
             if (i < fromIndex) return;
             const tick = this._ticks(ev.t - t0);
@@ -233,7 +247,7 @@ export class ScorePlayer {
                         } else this.kit?.trigger(n.drum, at, n.vel);
                     } else this.sampler?.triggerAttackRelease(midiToName(n.midi), Math.max(0.12, n.dur * secPerWhole * 0.95), time);
                 });
-                Tone.Draw.schedule(() => this._moveCursorTo(i), time);
+                Tone.Draw.schedule(() => this._moveCursorTo(i), time + (Tone.getContext().rawContext.outputLatency || 0)); // o cursor anda quando o som chega ao ouvido
             }, `${tick}i`));
         });
         const endTick = this._ticks(this.totalWhole - t0);
@@ -283,10 +297,46 @@ export class ScorePlayer {
     setMuted(part, muted) { if (muted) this.muted.add(part); else this.muted.delete(part); }
     setMetronome(on) { this.metronome = on; }
 
+    // posição atual da música em semibreves, sincronizada com o áudio (usada pela bolinha e pela barra)
+    // Tone.now() embute ~100 ms de antecipação do agendador; para o que se VÊ bater com o que se OUVE usa-se o relógio
+    // real do áudio menos a latência de saída (alto-falante/Bluetooth).
+    _audible() {
+        const raw = Tone.getContext().rawContext;
+        return raw.currentTime - Math.min(0.3, raw.outputLatency || raw.baseLatency || 0);
+    }
+
+    positionWhole() {
+        if (!this.playing) return this.events[this.index]?.t ?? 0;
+        const ticks = Tone.Transport.getTicksAtTime(Math.max(0, this._audible()));
+        return (this._t0 || 0) + ticks / (Tone.Transport.PPQ * 4);
+    }
+
+    // posição de cada passo na tela e a contagem de cada um (1 e 2 e...), para o acompanhamento visual
+    computeLayout() {
+        const cur = this.osmd.cursor;
+        const ctx = tupletContext(this.events);
+        const half = 6 * (this.osmd.zoom || 1);
+        const steps = [];
+        cur.reset();
+        for (let i = 0; i < this.events.length; i += 1) {
+            const el = cur.cursorElement;
+            const ev = this.events[i];
+            const lab = countLabel(ev, ctx);
+            steps.push({ i, t: ev.t, cx: parseFloat(el.style.left) + half, top: parseFloat(el.style.top), h: parseFloat(el.style.height), label: lab.text, main: lab.main, rest: !ev.notes.length });
+            cur.next();
+        }
+        cur.reset();
+        for (let i = 0; i < this.index; i += 1) cur.next();
+        steps.forEach((s2, i) => { s2.line = s2.top; s2.last = i === steps.length - 1; });
+        return { steps, total: this.totalWhole };
+    }
+
     // notas de um compasso/posição, para tocar só um trecho (usado pelo "ouvir esta nota")
     dispose() {
+        this.disposed = true;
         this.pause();
         try { this.osmd.clear(); } catch { /* ignora */ }
+        this.container.replaceChildren(); // o OSMD deixa a página desenhada; sem isto, cada recriação empilha uma cópia
         this.sampler?.dispose?.();
         this.kit?.dispose?.();
         this.click?.dispose?.();

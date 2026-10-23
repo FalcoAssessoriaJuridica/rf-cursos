@@ -1,0 +1,176 @@
+{
+ "kick": [
+  {
+   "file": "kick-kdruml-6.mp3",
+   "layer": 0
+  },
+  {
+   "file": "kick-kdruml-14.mp3",
+   "layer": 1
+  },
+  {
+   "file": "kick-kdruml-23.mp3",
+   "layer": 2
+  },
+  {
+   "file": "kick-kdrumr-7.mp3",
+   "layer": 0
+  },
+  {
+   "file": "kick-kdrumr-15.mp3",
+   "layer": 1
+  },
+  {
+   "file": "kick-kdrumr-24.mp3",
+   "layer": 2
+  }
+ ],
+ "snare": [
+  {
+   "file": "snare-snare1-12.mp3",
+   "layer": 0
+  },
+  {
+   "file": "snare-snare1-30.mp3",
+   "layer": 1
+  },
+  {
+   "file": "snare-snare1-51.mp3",
+   "layer": 2
+  },
+  {
+   "file": "snare-snare2-12.mp3",
+   "layer": 0
+  },
+  {
+   "file": "snare-snare2-30.mp3",
+   "layer": 1
+  },
+  {
+   "file": "snare-snare2-51.mp3",
+   "layer": 2
+  }
+ ],
+ "hatC": [
+  {
+   "file": "hatC-hihatclosed-5.mp3",
+   "layer": 0
+  },
+  {
+   "file": "hatC-hihatclosed-15.mp3",
+   "layer": 1
+  },
+  {
+   "file": "hatC-hihatclosed-26.mp3",
+   "layer": 2
+  }
+ ],
+ "hatO": [
+  {
+   "file": "hatO-hihatopen-6.mp3",
+   "layer": 0
+  },
+  {
+   "file": "hatO-hihatopen-15.mp3",
+   "layer": 1
+  },
+  {
+   "file": "hatO-hihatopen-26.mp3",
+   "layer": 2
+  }
+ ],
+ "hatP": [
+  {
+   "file": "hatP-hihatclosed-2.mp3",
+   "layer": 0
+  }
+ ],
+ "tomH": [
+  {
+   "file": "tomH-tom1-3.mp3",
+   "layer": 0
+  },
+  {
+   "file": "tomH-tom1-6.mp3",
+   "layer": 1
+  },
+  {
+   "file": "tomH-tom1-10.mp3",
+   "layer": 2
+  }
+ ],
+ "tomM": [
+  {
+   "file": "tomM-tom2-3.mp3",
+   "layer": 0
+  },
+  {
+   "file": "tomM-tom2-7.mp3",
+   "layer": 1
+  },
+  {
+   "file": "tomM-tom2-12.mp3",
+   "layer": 2
+  }
+ ],
+ "tomL": [
+  {
+   "file": "tomL-tom4-4.mp3",
+   "layer": 0
+  },
+  {
+   "file": "tomL-tom4-10.mp3",
+   "layer": 1
+  },
+  {
+   "file": "tomL-tom4-19.mp3",
+   "layer": 2
+  }
+ ],
+ "crash": [
+  {
+   "file": "crash-crashr-4.mp3",
+   "layer": 0
+  },
+  {
+   "file": "crash-crashr-8.mp3",
+   "layer": 1
+  },
+  {
+   "file": "crash-crashr-11.mp3",
+   "layer": 2
+  },
+  {
+   "file": "crash-crashl-4.mp3",
+   "layer": 0
+  },
+  {
+   "file": "crash-crashl-7.mp3",
+   "layer": 1
+  },
+  {
+   "file": "crash-crashl-9.mp3",
+   "layer": 2
+  }
+ ],
+ "ride": [
+  {
+   "file": "ride-rider-3.mp3",
+   "layer": 0
+  },
+  {
+   "file": "ride-rider-6.mp3",
+   "layer": 1
+  },
+  {
+   "file": "ride-rider-9.mp3",
+   "layer": 2
+  }
+ ],
+ "bell": [
+  {
+   "file": "bell-riderbell-4.mp3",
+   "layer": 1
+  }
+ ]
+}

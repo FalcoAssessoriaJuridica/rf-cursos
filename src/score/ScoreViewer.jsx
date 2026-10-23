@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, Pause, Play, RotateCcw, SkipBack, Timer, Volume2, VolumeX } from 'lucide-react';
 import { ScorePlayer } from './scoreEngine';
+import DrumOverlay from './DrumOverlay';
 import { cn } from '../lib/utils';
 
 // Partitura interativa: desenha, toca e acompanha com o cursor. Funciona com uma só pauta (clave de Sol) ou várias partes.
@@ -124,12 +125,22 @@ export default function ScoreViewer({ source, title, fromOmr = false, initialTim
                 <div className="flex items-center gap-3 text-sm font-semibold"><Loader2 className="h-5 w-5 animate-spin text-primary" /> Preparando a partitura{title ? `: ${title}` : ''}…</div>
             )}
 
-            <div className="score-paper rounded-2xl overflow-x-auto p-3 md:p-6" aria-label={title ? `Partitura: ${title}` : 'Partitura'} onClick={() => { if (playing) { player.current?.pause(); setPlaying(false); } }} title={playing ? 'Clique para pausar' : undefined}>
-                <div ref={holder} />
+            <div className={cn('score-paper rounded-2xl overflow-x-auto p-3 md:p-6', state.hasDrums && 'drum-paper')} aria-label={title ? `Partitura: ${title}` : 'Partitura'} onClick={() => { if (playing) { player.current?.pause(); setPlaying(false); } }} title={playing ? 'Clique para pausar' : undefined}>
+                {state.hasDrums && (
+                    <div className="dp-head">
+                        <span className="dp-title">{title}</span>
+                        {bpm && <span className="dp-badge"><Timer className="h-4 w-4" /> {bpm}</span>}
+                    </div>
+                )}
+                <div className="dp-wrap">
+                    <div ref={holder} />
+                    {state.hasDrums && <DrumOverlay player={player.current} ready={!state.loading && !state.error} playing={playing} step={step} layoutKey={`${source}|${clean}|${timeSig}`} />}
+                </div>
             </div>
             {!state.loading && !state.error && (
                 <button type="button" onClick={restart} className="sr-only"><RotateCcw /> Reiniciar</button>
             )}
+            {state.hasDrums && <p className="text-xs text-text-muted">Sons de bateria: MuldjordKit, de Lars Muldjord (CC BY 4.0).</p>}
         </div>
     );
 }
