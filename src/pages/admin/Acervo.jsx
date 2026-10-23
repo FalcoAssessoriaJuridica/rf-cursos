@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Eye, FileMusic, Folder, FolderPlus, Layers, Loader2, Pencil, Search, Share2, Trash2, Upload, X } from 'lucide-react';
 import { Button } from '../../components/Button';
 import ScoreLinksDialog from '../../components/ScoreLinksDialog';
@@ -10,6 +10,7 @@ import { cn } from '../../lib/utils';
 // Acervo central de partituras: pastas por gênero/tema, upload em lote e controle de onde cada partitura aparece (cursos e aulas).
 export default function Acervo() {
     const inputRef = useRef(null);
+    const navigate = useNavigate();
     const [folders, setFolders] = useState([]);
     const [scores, setScores] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -154,7 +155,9 @@ export default function Acervo() {
                     {loading ? <p className="text-sm text-text-muted">Carregando…</p> : (
                         <ul className="space-y-2">
                             {shown.map((s) => (
-                                <li key={s.id} className="glass flex flex-wrap items-center gap-3 rounded-xl p-3">
+                                <li key={s.id} role="link" tabIndex={0} onClick={() => navigate(`/student/partituras/${s.id}`)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) navigate(`/student/partituras/${s.id}`); }}
+                                    className="glass glass-hover flex cursor-pointer flex-wrap items-center gap-3 rounded-xl p-3">
                                     <FileMusic className="h-5 w-5 shrink-0 text-primary" />
                                     <div className="min-w-0 flex-1">
                                         <p className="truncate text-sm font-semibold">{s.titulo}</p>
@@ -162,7 +165,7 @@ export default function Acervo() {
                                             {[s.compositor, s.pasta_id ? folderName.get(s.pasta_id) : 'Sem pasta', s.origem === 'pdf' ? 'PDF lido' : 'MusicXML'].filter(Boolean).join(' · ')}
                                         </p>
                                     </div>
-                                    <div className="flex items-center gap-1">
+                                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                                         <Button variant="secondary" size="sm" type="button" className="h-8 px-3 text-[10px] font-bold uppercase tracking-wider" onClick={() => setLinking(s)}><Share2 className="mr-1 h-3.5 w-3.5" />Cursos e aulas</Button>
                                         <Link to={`/student/partituras/${s.id}`} title="Abrir" className="p-2 text-text-muted hover:text-primary"><Eye className="h-4 w-4" /></Link>
                                         <button type="button" title="Editar" onClick={() => setEditing(s)} className="p-2 text-text-muted hover:text-primary"><Pencil className="h-4 w-4" /></button>

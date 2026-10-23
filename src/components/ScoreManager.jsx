@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FileMusic, Library, Loader2, Unlink, Upload, Eye } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { addLinks, listScores, removeLink, LibraryNotReady, SCORE_ACCEPT, isRealId } from '../lib/scores';
 import { ingestFile } from '../lib/ingest';
 import AcervoPicker from './AcervoPicker';
@@ -9,6 +9,7 @@ import AcervoPicker from './AcervoPicker';
 // e já fica aqui) ou escolher partituras que já estão no acervo, mesmo as de outros cursos. Tirar daqui só desfaz o vínculo.
 export default function ScoreManager({ cursoId, aulaId = null, title = 'Partituras' }) {
     const inputRef = useRef(null);
+    const navigate = useNavigate();
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState('');
@@ -75,12 +76,14 @@ export default function ScoreManager({ cursoId, aulaId = null, title = 'Partitur
             {loading ? <p className="text-xs text-text-muted">Carregando…</p> : (
                 <ul className="space-y-1">
                     {items.map((s) => (
-                        <li key={s.vinculo_id} className="flex items-center gap-2 text-sm">
+                        <li key={s.vinculo_id} role="link" tabIndex={0} onClick={() => navigate(`/student/partituras/${s.id}`)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) navigate(`/student/partituras/${s.id}`); }}
+                            className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-sm hover:bg-white/5">
                             <FileMusic className="h-4 w-4 shrink-0 text-primary" />
                             <span className="min-w-0 flex-1 truncate">{s.titulo}</span>
                             <span className="text-[10px] uppercase text-text-muted">{s.origem === 'pdf' ? 'PDF lido' : 'MusicXML'}</span>
-                            <Link to={`/student/partituras/${s.id}`} title="Abrir" className="p-1 text-text-muted hover:text-primary"><Eye className="h-4 w-4" /></Link>
-                            <button type="button" title="Tirar daqui" onClick={() => unlink(s)} className="p-1 text-red-500"><Unlink className="h-4 w-4" /></button>
+                            <Link to={`/student/partituras/${s.id}`} title="Abrir" onClick={(e) => e.stopPropagation()} className="p-1 text-text-muted hover:text-primary"><Eye className="h-4 w-4" /></Link>
+                            <button type="button" title="Tirar daqui" onClick={(e) => { e.stopPropagation(); unlink(s); }} className="p-1 text-red-500"><Unlink className="h-4 w-4" /></button>
                         </li>
                     ))}
                     {!items.length && !notReady && <li className="text-xs text-text-muted">Nenhuma partitura aqui ainda. Envie um arquivo ou escolha do acervo.</li>}
