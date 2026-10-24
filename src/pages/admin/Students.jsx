@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { signOut } from '../../lib/auth';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/Card';
@@ -12,6 +13,13 @@ import { DEMO_COURSES, DEMO_STUDENTS, DEMO_PASSWORD, getDemoEnrollments, setDemo
 async function callAdmin(action, payload) {
     const { data, error } = await supabase.functions.invoke('admin-students', { body: { action, ...payload } });
     if (error) {
+        // 401/403: a sessão deste navegador não vale mais como administrador (expirou ou é anterior a uma troca de conta)
+        if ([401, 403].includes(error.context?.status)) {
+            await signOut();
+            alert('Sua sessão expirou. Entre novamente para continuar.');
+            window.location.assign('/login');
+            throw new Error('Sessão expirada');
+        }
         let msg = error.message;
         try { const j = await error.context?.json?.(); if (j?.error) msg = j.error; } catch { /* mantém a mensagem */ }
         throw new Error(msg);
@@ -198,7 +206,7 @@ export default function Students() {
             fetchStudents();
         } catch (error) {
             console.error("Error in handleSubmit:", error);
-            alert("Erro ao processar: " + error.message);
+            if (error.message !== 'Sessão expirada') alert("Erro ao processar: " + error.message);
         } finally {
             setLoading(false);
         }
