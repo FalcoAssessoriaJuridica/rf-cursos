@@ -3,6 +3,7 @@ import { Camera, Check, Loader2, Trash2 } from 'lucide-react';
 import Avatar from '../../components/Avatar';
 import { loadProfile, saveProfile, uploadAvatar, removeAvatar } from '../../lib/profile';
 import { changePassword, MIN_PASSWORD, isDemoSession } from '../../lib/auth';
+import { PRAZOS, STATUS_ASSINATURA, minhasAssinaturas, pagamentos } from '../../lib/pagamentos';
 
 const EXTRA_FIELDS = [
     { key: 'data_nascimento', label: 'Data de nascimento', type: 'date' },
@@ -24,6 +25,48 @@ function Field({ label, hint, children }) {
             {children}
             {hint && <span className="profile-hint block text-xs text-text-muted">{hint}</span>}
         </label>
+    );
+}
+
+// Assinaturas (Stripe): situação de cada curso e acesso ao portal do Stripe (trocar cartão, ver faturas, cancelar).
+function SubscriptionsCard() {
+    const [lista, setLista] = useState(null);
+    const [busy, setBusy] = useState(false);
+    const [erro, setErro] = useState('');
+
+    useEffect(() => { minhasAssinaturas().then(setLista).catch(() => setLista([])); }, []);
+    if (!lista?.length) return null;
+
+    const abrirPortal = async () => {
+        setErro(''); setBusy(true);
+        try { const { url } = await pagamentos('portal'); window.location.assign(url); }
+        catch (e) { setErro(e.message); setBusy(false); }
+    };
+
+    return (
+        <section className="liquid-glass profile-card space-y-5 rounded-[2rem] p-6 md:p-8" aria-label="Minhas assinaturas">
+            <h2 className="text-lg font-bold text-text">Minhas assinaturas</h2>
+            <ul className="divide-y divide-white/10">
+                {lista.map((a) => (
+                    <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
+                        <div>
+                            <p className="font-semibold text-text">{a.cursos?.titulo}</p>
+                            <p className="text-xs text-text-muted">
+                                {PRAZOS.find((p) => p.id === a.prazo)?.label}
+                                {a.periodo_fim && ` · ${a.status === 'canceled' || a.cancela_no_fim ? 'acesso até' : 'próxima cobrança em'} ${new Date(a.periodo_fim).toLocaleDateString('pt-BR')}`}
+                            </p>
+                        </div>
+                        <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">{STATUS_ASSINATURA[a.status] ?? a.status}{a.cancela_no_fim && a.status !== 'canceled' ? ' · cancela no fim' : ''}</span>
+                    </li>
+                ))}
+            </ul>
+            <div className="flex flex-wrap items-center gap-4">
+                <button onClick={abrirPortal} disabled={busy} className="btn-primary flex h-12 items-center gap-2 px-8 disabled:opacity-60">
+                    {busy && <Loader2 className="h-4 w-4 animate-spin" />}{busy ? 'Abrindo...' : 'Gerenciar pagamento e cancelamento'}
+                </button>
+                {erro && <p role="alert" className="text-sm font-semibold text-red-500">{erro}</p>}
+            </div>
+        </section>
     );
 }
 
@@ -192,6 +235,7 @@ export default function Profile() {
                 </form>
             </div>
 
+            {!isDemoSession() && <SubscriptionsCard />}
             {!isDemoSession() && <PasswordCard />}
         </div>
     );

@@ -10,6 +10,10 @@ import Students from './pages/admin/Students';
 import Courses from './pages/admin/Courses';
 import CourseContent from './pages/admin/CourseContent';
 import Acervo from './pages/admin/Acervo';
+import Precos from './pages/admin/Precos';
+import Cadastro from './pages/Cadastro';
+import Planos from './pages/student/Planos';
+import PagamentoSucesso from './pages/student/PagamentoSucesso';
 import CourseList from './pages/student/CourseList';
 import Player from './pages/student/Player';
 import CourseDetail from './pages/student/CourseDetail';
@@ -72,6 +76,7 @@ function App() {
           <Route element={<AuthLayout />}>
             <Route path="/login" element={<Login />} />
           </Route>
+          <Route path="/cadastro" element={<Cadastro />} />
           <Route path="/recuperar-senha" element={<RecuperarSenha />} />
           <Route path="/redefinir-senha" element={<RedefinirSenha />} />
 
@@ -81,6 +86,7 @@ function App() {
             <Route path="students" element={<Students />} />
             <Route path="courses" element={<Courses />} />
             <Route path="partituras" element={<Acervo />} />
+            <Route path="precos" element={<Precos />} />
             <Route path="courses/:courseId/content" element={<CourseContent />} />
           </Route>
 
@@ -88,6 +94,8 @@ function App() {
           <Route path="/student" element={<StudentRoute><MainLayout isAdmin={false} /></StudentRoute>}>
             <Route index element={<CourseList />} />
             <Route path="perfil" element={<Profile />} />
+            <Route path="planos" element={<Planos />} />
+            <Route path="pagamento/sucesso" element={<PagamentoSucesso />} />
             <Route path="partituras" element={<Partituras />} />
             <Route path="partituras/:scoreId" element={<PartituraView />} />
             <Route path="course/:courseId" element={<CourseDetail />} />

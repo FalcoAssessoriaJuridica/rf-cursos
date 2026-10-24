@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LogOut, LayoutDashboard, Users, BookOpen, GraduationCap, ArrowLeft, UserRound, Music2 } from 'lucide-react';
+import { LogOut, LayoutDashboard, Users, BookOpen, GraduationCap, ArrowLeft, UserRound, Music2, CreditCard } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { Button } from '../components/Button';
 import ThemeToggle from '../components/ThemeToggle';
 import { DEMO_ENABLED } from '../lib/demoCourses';
 import Avatar from '../components/Avatar';
-import { signOut } from '../lib/auth';
+import { signOut, isDemoSession } from '../lib/auth';
 
 export default function MainLayout({ isAdmin = false }) {
     const location = useLocation();
@@ -83,11 +83,13 @@ export default function MainLayout({ isAdmin = false }) {
             { href: '/admin/courses', label: 'Cursos', icon: BookOpen },
             { href: '/admin/partituras', label: 'Acervo', icon: Music2 },
             { href: '/admin/students', label: 'Alunos', icon: Users },
+            { href: '/admin/precos', label: 'Preços', icon: CreditCard },
             { href: '/student', label: 'Área do Aluno', icon: GraduationCap },
         ]
         : [
             { href: '/student', label: 'Meus Cursos', icon: BookOpen },
             { href: '/student/partituras', label: 'Partituras', icon: Music2 },
+            ...(studentId && !isDemoSession() ? [{ href: '/student/planos', label: 'Planos', icon: CreditCard }] : []),
             ...(studentId ? [{ href: '/student/perfil', label: 'Meu perfil', icon: UserRound }] : []),
         ];
 

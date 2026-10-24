@@ -141,8 +141,9 @@ export default function Login() {
                         </button>
                     </form>
 
-                    <p className="mt-5 text-center text-sm">
+                    <p className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm">
                         <Link to="/recuperar-senha" className="text-white/60 underline underline-offset-4 hover:text-primary">Esqueci minha senha</Link>
+                        <Link to="/cadastro" className="text-primary underline underline-offset-4 hover:text-primary-hover">Criar conta</Link>
                     </p>
 
                     <div className="mt-8 text-center">

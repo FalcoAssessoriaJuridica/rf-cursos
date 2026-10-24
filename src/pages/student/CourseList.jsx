@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { BookOpen, Clock, PlayCircle, Search, Star, Play } from 'lucide-react';
@@ -270,6 +270,9 @@ export default function CourseList() {
                         <Play className="h-12 w-12 text-white/10 mx-auto mb-4" />
                         <h3 className="text-xl font-bold text-white mb-2">Sem cursos por aqui</h3>
                         <p className="text-white/40">Você ainda não está inscrito em nenhum curso.</p>
+                        {!isDemoStudentId(localStorage.getItem('rf_user_id')) && localStorage.getItem('rf_user_id') && (
+                            <Link to="/student/planos" className="btn-primary mt-6 inline-flex h-12 items-center px-8">Ver planos</Link>
+                        )}
                     </div>
                 )}
             </motion.div>
