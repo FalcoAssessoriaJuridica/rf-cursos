@@ -16,8 +16,9 @@ import { useOpenModules } from '../../lib/moduleState';
 import { KindIcon } from '../../components/MaterialUploader';
 import { downloadHref, fileKind, formatBytes, isStorageUrl } from '../../lib/materials';
 import { driveId, resolveMedia, isTimeTracked } from '../../lib/media';
+import { driveFetch, driveProxyUrl } from '../../lib/driveProxy';
+import ProtectedAudio from '../../components/ProtectedAudio';
 
-const FUNC_URL = 'https://bghvzdfikfhceekoxtxg.supabase.co/functions/v1/drive-proxy';
 export default function Player() {
     const { courseId, lessonId } = useParams();
     const navigate = useNavigate();
@@ -158,7 +159,7 @@ export default function Player() {
             const ext = type === 'audio' ? '.mp3' : '.pdf';
             let name = filename || (type === 'audio' ? 'Audio' : 'Documento');
             if (!name.toLowerCase().endsWith(ext)) name += ext;
-            const proxyUrl = `${FUNC_URL}?id=${id}&filename=${encodeURIComponent(name)}&download=true&t=${Date.now()}`;
+            const proxyUrl = driveProxyUrl(id, { filename: name, download: 'true', t: Date.now() });
 
             if (window.showSaveFilePicker) {
                 try {
@@ -166,7 +167,7 @@ export default function Player() {
                         suggestedName: name,
                         types: [{ description: type === 'audio' ? 'Arquivo de Áudio' : 'Documento PDF', accept: { [type === 'audio' ? 'audio/mpeg' : 'application/pdf']: [ext] } }],
                     });
-                    const response = await fetch(proxyUrl);
+                    const response = await driveFetch(proxyUrl);
                     if (!response.ok) throw new Error('Erro ao baixar do servidor');
                     const writable = await handle.createWritable();
                     await response.body.pipeTo(writable);
@@ -176,7 +177,7 @@ export default function Player() {
                     console.warn('showSaveFilePicker falhou, tentando fallback...', err);
                 }
             }
-            const response = await fetch(proxyUrl);
+            const response = await driveFetch(proxyUrl);
             if (!response.ok) throw new Error('Erro no download');
             const blob = await response.blob();
             const blobUrl = URL.createObjectURL(new Blob([blob], { type: 'application/octet-stream' }));
@@ -408,9 +409,7 @@ export default function Player() {
                                                             <Download className="h-4 w-4 text-text-muted" />
                                                         </button>
                                                     </div>
-                                                    <audio controls crossOrigin="anonymous" preload="none" className="w-full h-8 filter invert opacity-80">
-                                                        <source src={driveId(audio.url) ? `${FUNC_URL}?${new URLSearchParams({ id: driveId(audio.url), filename: audio.nome || 'arquivo' })}` : audio.url} type="audio/mpeg" />
-                                                    </audio>
+                                                    <ProtectedAudio driveFileId={driveId(audio.url)} name={audio.nome} url={audio.url} />
                                                 </div>
                                             ))}
                                         </div>
