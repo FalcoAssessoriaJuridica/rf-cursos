@@ -12,13 +12,19 @@ export default function ProtectedAudio({ driveFileId, name, url }) {
         return <audio controls crossOrigin="anonymous" preload="none" className="w-full h-8 filter invert opacity-80"><source src={url} type="audio/mpeg" /></audio>;
     }
     if (state.status === 'ready') {
-        return <audio controls autoPlay src={state.src} className="w-full h-8 filter invert opacity-80" />;
+        return (
+            <div className="flex flex-col gap-1">
+                <audio controls autoPlay src={state.src} className="w-full h-8 filter invert opacity-80"
+                    onError={() => setState({ status: 'error', src: null, error: 'O navegador não conseguiu tocar este arquivo (formato não suportado ou arquivo inválido). Use o botão de baixar.' })} />
+            </div>
+        );
     }
     const load = async () => {
         setState({ status: 'loading', src: null, error: '' });
         try {
             const res = await driveFetch(driveProxyUrl(driveFileId, { filename: name || 'arquivo.mp3' }));
             const blob = await res.blob();
+            if (/text\/html|json/.test(blob.type)) throw new Error('O Drive não entregou o áudio. Confira se o arquivo está compartilhado como "Qualquer pessoa com o link".');
             setState({ status: 'ready', src: URL.createObjectURL(new Blob([blob], { type: 'audio/mpeg' })), error: '' });
         } catch (e) {
             setState({ status: 'error', src: null, error: e.message });
