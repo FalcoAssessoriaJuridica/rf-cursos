@@ -1,7 +1,7 @@
 // Edge Function `stripe-webhook` (Deno): recebe os eventos do Stripe e liberam/encerram o acesso do aluno.
 // Deploy: verify_jwt = DESLIGADO (quem chama é o Stripe; a autenticidade vem da assinatura `Stripe-Signature`).
 // Segredos: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET (whsec_...), e os injetados (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY).
-// Eventos a assinar no Stripe: checkout.session.completed, customer.subscription.created/updated/deleted, invoice.paid, invoice.payment_failed.
+// Eventos a assinar no Stripe: checkout.session.completed, checkout.session.async_payment_succeeded (Pix), customer.subscription.created/updated/deleted, invoice.paid, invoice.payment_failed.
 //
 // Regra de acesso: a matrícula (inscricoes.data_expiracao) vai até o fim do período pago + TOLERANCIA_DIAS.
 // A cada renovação o Stripe avisa e a data avança; se o pagamento falha, o acesso simplesmente expira. Matrícula "bloqueado" (manual) nunca é reaberta.
@@ -42,6 +42,38 @@ async function aplicarUmTestePorCartao(sub: Stripe.Subscription, perfilId: strin
   } catch (e) {
     console.error('checagem de teste por cartão falhou:', (e as Error).message);
     return sub;
+  }
+}
+
+// Pix avulso: soma o período comprado ao acesso que sobrar (ou a partir de hoje). Idempotente pelo id da sessão.
+const somarPeriodo = (inicio: Date, prazo: string) => {
+  const d = new Date(inicio);
+  if (prazo === 'semestral') d.setUTCMonth(d.getUTCMonth() + 6);
+  else if (prazo === 'anual') d.setUTCFullYear(d.getUTCFullYear() + 1);
+  else d.setUTCDate(d.getUTCDate() + 30);
+  return d;
+};
+
+async function conceder(s: Stripe.Checkout.Session) {
+  const { perfil_id: perfilId, curso_id: cursoId, prazo } = (s.metadata ?? {}) as Record<string, string>;
+  if (!perfilId || !cursoId || !['mensal', 'semestral', 'anual'].includes(prazo)) { console.warn('pagamento avulso sem metadados:', s.id); return; }
+
+  // 1º registra (a chave única impede liberar duas vezes); se algo falhar depois, desfaz para o Stripe poder repetir o evento
+  const { error: e0 } = await db.from('pagamentos_avulsos').insert({ stripe_session_id: s.id, perfil_id: perfilId, curso_id: cursoId, prazo, valor_centavos: s.amount_total });
+  if (e0) { if (e0.code === '23505') return; throw new Error(e0.message); }
+
+  try {
+    const { data: m } = await db.from('inscricoes').select('id, status, data_expiracao').eq('perfil_id', perfilId).eq('curso_id', cursoId).limit(1).maybeSingle();
+    if (m?.status === 'bloqueado') { console.warn('matrícula bloqueada manualmente; pagamento registrado sem liberar:', s.id); return; }
+    const hoje = new Date(isoDate(Date.now()) + 'T00:00:00Z');
+    const atual = m?.data_expiracao ? new Date(m.data_expiracao + 'T00:00:00Z') : null;
+    const ate = isoDate(somarPeriodo(atual && atual > hoje ? atual : hoje, prazo).getTime());
+    if (m) await db.from('inscricoes').update({ status: 'ativo', data_expiracao: ate }).eq('id', m.id);
+    else await db.from('inscricoes').insert({ perfil_id: perfilId, curso_id: cursoId, status: 'ativo', data_expiracao: ate });
+    await db.from('pagamentos_avulsos').update({ acesso_ate: ate }).eq('stripe_session_id', s.id);
+  } catch (e) {
+    await db.from('pagamentos_avulsos').delete().eq('stripe_session_id', s.id);
+    throw e;
   }
 }
 
@@ -101,7 +133,13 @@ Deno.serve(async (req) => {
     switch (evento.type) {
       case 'checkout.session.completed': {
         const s = evento.data.object as Stripe.Checkout.Session;
+        if (s.mode === 'payment' && s.payment_status === 'paid') await conceder(s);
         if (s.mode === 'subscription' && s.subscription) await sincronizar(await stripe.subscriptions.retrieve(typeof s.subscription === 'string' ? s.subscription : s.subscription.id));
+        break;
+      }
+      case 'checkout.session.async_payment_succeeded': {   // Pix confirmado depois do checkout
+        const s = evento.data.object as Stripe.Checkout.Session;
+        if (s.mode === 'payment' && s.payment_status === 'paid') await conceder(s);
         break;
       }
       case 'customer.subscription.created':

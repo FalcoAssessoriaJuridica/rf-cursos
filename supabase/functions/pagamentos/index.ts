@@ -1,7 +1,7 @@
 // Edge Function `pagamentos` (Deno): checkout do Stripe, portal do cliente e cadastro de preços (admin).
 // Deploy: verify_jwt = LIGADO (padrão). Segredos: STRIPE_SECRET_KEY, ALLOWED_ORIGIN (o 1º valor é o endereço do app) e os já injetados
 // (SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY). Exige 0010_pagamentos.sql.
-// Ações (POST, JSON): checkout {curso_id, prazo} · portal {} · set_price {curso_id, prazo, valor_centavos} (admin) · remove_price {curso_id, prazo} (admin)
+// Ações (POST, JSON): checkout {curso_id, prazo, metodo?: 'cartao'|'pix'} · portal {} · set_price {curso_id, prazo, valor_centavos} (admin) · remove_price {curso_id, prazo} (admin)
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import Stripe from 'https://esm.sh/stripe@17.7.0?target=denonext';
 
@@ -64,26 +64,44 @@ Deno.serve(async (req) => {
       case 'checkout': {
         const cursoId = String(p.curso_id ?? ''); const prazo = String(p.prazo ?? '');
         if (!UUID.test(cursoId) || !RECORRENCIA[prazo]) return json({ error: 'Plano inválido.' }, 400);
-        const { data: preco } = await db.from('precos_curso').select('stripe_price_id').eq('curso_id', cursoId).eq('prazo', prazo).eq('ativo', true).maybeSingle();
+        const metodo = p.metodo === 'pix' ? 'pix' : 'cartao';
+        const { data: preco } = await db.from('precos_curso').select('stripe_price_id, valor_centavos').eq('curso_id', cursoId).eq('prazo', prazo).eq('ativo', true).maybeSingle();
         if (!preco?.stripe_price_id) return json({ error: 'Este plano não está disponível.' }, 404);
 
         const { data: previas } = await db.from('assinaturas').select('status').eq('perfil_id', user.id).eq('curso_id', cursoId);
         if (previas?.some((a) => ATIVAS.includes(a.status))) return json({ error: 'Você já tem uma assinatura ativa deste curso. Gerencie em Meu perfil.' }, 409);
-        const teste = prazo === 'mensal' && !(previas?.length);
 
         const customer = await ensureCustomer();
         const meta = { perfil_id: user.id, curso_id: cursoId, prazo };
+        const comum = { customer, locale: 'pt-BR' as const, success_url: `${APP_URL}/student/pagamento/sucesso?curso=${cursoId}`, cancel_url: `${APP_URL}/student/planos` };
+
+        if (metodo === 'pix') {
+          // Pix avulso: paga uma vez e ganha o período; para renovar, paga de novo (o acesso novo soma ao que sobrar)
+          const { data: curso } = await db.from('cursos').select('titulo, stripe_product_id').eq('id', cursoId).maybeSingle();
+          if (!curso) return json({ error: 'Curso não encontrado.' }, 404);
+          const session = await stripe.checkout.sessions.create({
+            ...comum,
+            mode: 'payment',
+            payment_method_types: ['pix'],
+            line_items: [{
+              quantity: 1,
+              price_data: { currency: 'brl', unit_amount: preco.valor_centavos, ...(curso.stripe_product_id ? { product: curso.stripe_product_id } : { product_data: { name: curso.titulo } }) },
+            }],
+            metadata: { ...meta, metodo: 'pix' },
+            payment_intent_data: { metadata: { ...meta, metodo: 'pix' } },
+          });
+          return json({ url: session.url });
+        }
+
+        const teste = prazo === 'mensal' && !(previas?.length);
         const session = await stripe.checkout.sessions.create({
+          ...comum,
           mode: 'subscription',
-          customer,
           line_items: [{ price: preco.stripe_price_id, quantity: 1 }],
           payment_method_collection: 'always',            // cartão obrigatório, inclusive no período de teste
-          locale: 'pt-BR',
           allow_promotion_codes: true,
           subscription_data: { metadata: meta, ...(teste ? { trial_period_days: TRIAL_DIAS } : {}) },
           metadata: meta,
-          success_url: `${APP_URL}/student/pagamento/sucesso?curso=${cursoId}`,
-          cancel_url: `${APP_URL}/student/planos`,
         });
         return json({ url: session.url });
       }

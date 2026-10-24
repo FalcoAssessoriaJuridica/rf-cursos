@@ -55,3 +55,12 @@ export const STATUS_ASSINATURA = {
     incomplete: 'Aguardando pagamento',
     incomplete_expired: 'Expirada',
 };
+
+export async function meusPagamentosPix() {
+    const { data, error } = await supabase
+        .from('pagamentos_avulsos')
+        .select('id, prazo, acesso_ate, pago_em, cursos(titulo)')
+        .order('pago_em', { ascending: false });
+    if (error) throw new Error(error.message);
+    return data || [];
+}

@@ -1,20 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, Loader2, Sparkles } from 'lucide-react';
-import { PRAZOS, brl, carregarCatalogo, pagamentos } from '../../lib/pagamentos';
+import { Check, CreditCard, Loader2, QrCode, Sparkles } from 'lucide-react';
+import { PRAZOS, brl, carregarCatalogo, minhasAssinaturas, pagamentos } from '../../lib/pagamentos';
 import { cn } from '../../lib/utils';
 
-function CursoPlano({ curso }) {
+function CursoPlano({ curso, comAssinatura }) {
     const [prazo, setPrazo] = useState(curso.precos?.[0]?.prazo);
+    const [metodo, setMetodo] = useState('cartao');
     const [busy, setBusy] = useState(false);
     const [erro, setErro] = useState('');
     const preco = curso.precos?.find((p) => p.prazo === prazo);
-    const comTeste = curso.trial && prazo === 'mensal';
+    const pix = metodo === 'pix';
+    const comTeste = !pix && curso.trial && prazo === 'mensal';
+    const info = PRAZOS.find((x) => x.id === prazo);
 
     const assinar = async () => {
         setErro(''); setBusy(true);
         try {
-            const { url } = await pagamentos('checkout', { curso_id: curso.id, prazo });
+            const { url } = await pagamentos('checkout', { curso_id: curso.id, prazo, metodo });
             window.location.assign(url);
         } catch (e) {
             setErro(e.message);
@@ -32,16 +35,31 @@ function CursoPlano({ curso }) {
             <div className="flex flex-1 flex-col gap-5 p-5">
                 {curso.descricao && <p className="line-clamp-3 text-sm text-text-muted">{curso.descricao}</p>}
 
-                {curso.ativo ? (
+                {curso.ativo && comAssinatura ? (
                     <div className="mt-auto flex items-center gap-2 rounded-xl bg-green-500/10 px-4 py-3 text-sm font-semibold text-green-500">
                         <Check className="h-4 w-4" /> Você já tem acesso a este curso.
                         <Link to={`/student/course/${curso.id}`} className="ml-auto underline underline-offset-4">Abrir</Link>
                     </div>
                 ) : (
                     <>
+                        {curso.ativo && (
+                            <p className="rounded-xl bg-green-500/10 px-4 py-3 text-xs font-semibold text-green-500">
+                                Você já tem acesso a este curso. Se pagar de novo, o novo período é somado ao que sobrar.
+                                <Link to={`/student/course/${curso.id}`} className="ml-2 underline underline-offset-4">Abrir</Link>
+                            </p>
+                        )}
+                        <div role="radiogroup" aria-label={`Forma de pagamento de ${curso.titulo}`} className="grid grid-cols-2 gap-2">
+                            {[['cartao', 'Cartão', CreditCard, 'renova sozinho'], ['pix', 'Pix', QrCode, 'pagamento único']].map(([id, nome, Icon, sub]) => (
+                                <button key={id} type="button" role="radio" aria-checked={metodo === id} onClick={() => setMetodo(id)}
+                                    className={cn('flex items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors',
+                                        metodo === id ? 'border-primary bg-primary/10' : 'border-white/10 hover:border-white/30')}>
+                                    <Icon className="h-4 w-4 shrink-0" />
+                                    <span><span className="block text-sm font-bold leading-tight">{nome}</span><span className="block text-[10px] text-text-muted">{sub}</span></span>
+                                </button>
+                            ))}
+                        </div>
                         <div role="radiogroup" aria-label={`Prazo de ${curso.titulo}`} className="grid gap-2">
                             {curso.precos.map((p) => {
-                                const info = PRAZOS.find((x) => x.id === p.prazo);
                                 const on = p.prazo === prazo;
                                 return (
                                     <button key={p.prazo} type="button" role="radio" aria-checked={on} onClick={() => setPrazo(p.prazo)}
@@ -49,7 +67,7 @@ function CursoPlano({ curso }) {
                                             on ? 'border-primary bg-primary/10' : 'border-white/10 hover:border-white/30')}>
                                         <span>
                                             <span className="block text-sm font-bold">{info?.label}</span>
-                                            <span className="block text-[11px] text-text-muted">renova {info?.renova}</span>
+                                            <span className="block text-[11px] text-text-muted">{pix ? `acesso por ${PRAZOS.find((x) => x.id === p.prazo)?.label}` : `renova ${PRAZOS.find((x) => x.id === p.prazo)?.renova}`}</span>
                                         </span>
                                         <span className="text-base font-bold tabular-nums">{brl(p.valor_centavos)}</span>
                                     </button>
@@ -59,12 +77,14 @@ function CursoPlano({ curso }) {
                         <div className="mt-auto space-y-2">
                             <button onClick={assinar} disabled={busy} className="btn-primary flex h-12 w-full items-center justify-center gap-2 disabled:opacity-60">
                                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : comTeste && <Sparkles className="h-4 w-4" />}
-                                {busy ? 'Abrindo pagamento...' : comTeste ? 'Começar 7 dias grátis' : 'Assinar'}
+                                {busy ? 'Abrindo pagamento...' : comTeste ? 'Começar 7 dias grátis' : pix ? 'Pagar com Pix' : 'Assinar'}
                             </button>
                             <p className="text-center text-[11px] text-text-muted">
-                                {comTeste
+                                {pix
+                                    ? `Pagamento único de ${brl(preco?.valor_centavos)}: acesso por ${info?.label} a partir da confirmação. Não renova sozinho; para continuar, pague de novo (o que sobrar é somado).`
+                                    : comTeste
                                     ? `Cartão obrigatório; um teste grátis por cartão. Sem cobrança por 7 dias; depois ${brl(preco?.valor_centavos)} a cada 30 dias. Cancele quando quiser.`
-                                    : `Cobrança recorrente de ${brl(preco?.valor_centavos)} ${PRAZOS.find((x) => x.id === prazo)?.renova}. Cancele quando quiser.`}
+                                    : `Cobrança recorrente de ${brl(preco?.valor_centavos)} ${info?.renova}. Cancele quando quiser.`}
                             </p>
                             {erro && <p role="alert" className="text-center text-xs font-semibold text-red-500">{erro}</p>}
                         </div>
@@ -77,8 +97,13 @@ function CursoPlano({ curso }) {
 
 export default function Planos() {
     const [state, setState] = useState({ loading: true, cursos: [], erro: '' });
+    const [comAssinatura, setComAssinatura] = useState(new Set());
 
     useEffect(() => {
+        // curso com assinatura de cartão ativa: a renovação é automática (gerenciada em Meu perfil)
+        minhasAssinaturas()
+            .then((l) => setComAssinatura(new Set(l.filter((a) => ['active', 'trialing', 'past_due'].includes(a.status)).map((a) => a.curso_id))))
+            .catch(() => {});
         carregarCatalogo()
             .then((cursos) => setState({ loading: false, cursos, erro: '' }))
             .catch((e) => setState({ loading: false, cursos: [], erro: e.message }));
@@ -104,7 +129,7 @@ export default function Planos() {
                 </div>
             )}
             <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-                {state.cursos.map((c) => <CursoPlano key={c.id} curso={c} />)}
+                {state.cursos.map((c) => <CursoPlano key={c.id} curso={c} comAssinatura={comAssinatura.has(c.id)} />)}
             </div>
         </div>
     );

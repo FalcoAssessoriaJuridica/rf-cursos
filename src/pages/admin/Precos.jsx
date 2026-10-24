@@ -53,18 +53,20 @@ export default function Precos() {
     const [cursos, setCursos] = useState([]);
     const [precos, setPrecos] = useState([]);
     const [assinaturas, setAssinaturas] = useState([]);
+    const [pix, setPix] = useState([]);
     const [loading, setLoading] = useState(true);
     const [erro, setErro] = useState('');
 
     const carregar = useCallback(async () => {
-        const [c, p, a] = await Promise.all([
+        const [c, p, a, x] = await Promise.all([
             supabase.from('cursos').select('id, titulo').order('titulo'),
             supabase.from('precos_curso').select('*'),
             supabase.from('assinaturas').select('id, status, prazo, periodo_fim, cancela_no_fim, perfis(nome_completo, email), cursos(titulo)').order('atualizado_em', { ascending: false }).limit(50),
+            supabase.from('pagamentos_avulsos').select('id, prazo, valor_centavos, acesso_ate, pago_em, perfis(nome_completo, email), cursos(titulo)').order('pago_em', { ascending: false }).limit(50),
         ]);
-        const falha = c.error || p.error || a.error;
+        const falha = c.error || p.error || a.error || x.error;
         if (falha) { setErro(falha.message); return; }
-        setCursos(c.data); setPrecos(p.data); setAssinaturas(a.data); setErro('');
+        setCursos(c.data); setPrecos(p.data); setAssinaturas(a.data); setPix(x.data); setErro('');
     }, []);
 
     useEffect(() => { carregar().finally(() => setLoading(false)); }, [carregar]);
@@ -111,6 +113,33 @@ export default function Precos() {
                                         <td className="px-4 py-3">{PRAZOS.find((p) => p.id === a.prazo)?.label ?? '—'}</td>
                                         <td className="px-4 py-3">{STATUS_ASSINATURA[a.status] ?? a.status}{a.cancela_no_fim && a.status !== 'canceled' ? ' (cancela no fim)' : ''}</td>
                                         <td className="px-4 py-3 tabular-nums">{a.periodo_fim ? new Date(a.periodo_fim).toLocaleDateString('pt-BR') : '—'}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </section>
+
+            <section className="space-y-3">
+                <h2 className="text-xl font-bold">Pagamentos por Pix</h2>
+                {pix.length === 0 ? (
+                    <p className="text-sm text-text-muted">Nenhum pagamento por Pix ainda.</p>
+                ) : (
+                    <div className="overflow-x-auto rounded-2xl border border-white/10">
+                        <table className="w-full min-w-[640px] text-left text-sm">
+                            <thead className="text-[11px] uppercase tracking-widest text-text-muted"><tr>
+                                <th className="px-4 py-3">Aluno</th><th className="px-4 py-3">Curso</th><th className="px-4 py-3">Prazo</th><th className="px-4 py-3">Valor</th><th className="px-4 py-3">Pago em</th><th className="px-4 py-3">Acesso até</th>
+                            </tr></thead>
+                            <tbody>
+                                {pix.map((x) => (
+                                    <tr key={x.id} className="border-t border-white/5">
+                                        <td className="px-4 py-3"><span className="block font-semibold">{x.perfis?.nome_completo}</span><span className="block text-xs text-text-muted">{x.perfis?.email}</span></td>
+                                        <td className="px-4 py-3">{x.cursos?.titulo}</td>
+                                        <td className="px-4 py-3">{PRAZOS.find((p) => p.id === x.prazo)?.label}</td>
+                                        <td className="px-4 py-3 tabular-nums">{x.valor_centavos ? brl(x.valor_centavos) : '—'}</td>
+                                        <td className="px-4 py-3 tabular-nums">{new Date(x.pago_em).toLocaleDateString('pt-BR')}</td>
+                                        <td className="px-4 py-3 tabular-nums">{x.acesso_ate ? new Date(x.acesso_ate + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</td>
                                     </tr>
                                 ))}
                             </tbody>
