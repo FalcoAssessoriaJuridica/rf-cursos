@@ -29,17 +29,6 @@ const ATIVAS = ['active', 'trialing', 'past_due'];
 const APP = 'rf-cursos';
 const PREFIXO = 'RF Cursos - ';
 
-// nível da sessão (aal1 = só senha; aal2 = senha + código do 2º fator), lido do JWT já validado pelo Supabase
-const aalDe = (authHeader: string): string | undefined => {
-  try {
-    const t = authHeader.replace(/^Bearer\s+/i, '').split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-    return JSON.parse(atob(t)).aal;
-  } catch { return undefined; }
-};
-// administrador com verificação em duas etapas ativada só vale com a sessão em aal2
-const adminValido = (user: any, authHeader: string) =>
-  user?.app_metadata?.role === 'admin' && (!user.factors?.some((f: any) => f.status === 'verified') || aalDe(authHeader) === 'aal2');
-
 Deno.serve(async (req) => {
   const cors = corsFor(req.headers.get('Origin'));
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
@@ -58,7 +47,7 @@ Deno.serve(async (req) => {
 
   let p: Record<string, any>;
   try { p = await req.json(); } catch { return json({ error: 'requisição inválida' }, 400); }
-  const isAdmin = adminValido(user, req.headers.get('Authorization') ?? '');
+  const isAdmin = user.app_metadata?.role === 'admin';
 
   // cliente do Stripe do usuário (cria se faltar; recria se o id guardado não existe mais, ex.: troca de modo teste/real)
   const ensureCustomer = async () => {

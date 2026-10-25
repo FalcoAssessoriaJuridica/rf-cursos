@@ -27,17 +27,6 @@ const temp = () => {
   return [...bytes].map((b) => alphabet[b % alphabet.length]).join('');
 };
 
-// nível da sessão (aal1 = só senha; aal2 = senha + código do 2º fator), lido do JWT já validado pelo Supabase
-const aalDe = (authHeader: string): string | undefined => {
-  try {
-    const t = authHeader.replace(/^Bearer\s+/i, '').split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-    return JSON.parse(atob(t)).aal;
-  } catch { return undefined; }
-};
-// administrador com verificação em duas etapas ativada só vale com a sessão em aal2
-const adminValido = (user: any, authHeader: string) =>
-  user?.app_metadata?.role === 'admin' && (!user.factors?.some((f: any) => f.status === 'verified') || aalDe(authHeader) === 'aal2');
-
 Deno.serve(async (req) => {
   const cors = corsFor(req.headers.get('Origin'));
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
@@ -48,7 +37,7 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get('Authorization') ?? '';
   const asUser = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: authHeader } } });
   const { data: { user }, error: authErr } = await asUser.auth.getUser();
-  if (authErr || !user || !adminValido(user, authHeader)) return json({ error: 'forbidden' }, 403);
+  if (authErr || !user || user.app_metadata?.role !== 'admin') return json({ error: 'forbidden' }, 403);
 
   // 2) Só depois de validar o admin entra o service_role (ignora RLS).
   const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false, autoRefreshToken: false } });

@@ -16,7 +16,7 @@ RUN wget -q -O /tmp/audiveris.deb \
     dpkg -x /tmp/audiveris.deb / && rm -f /tmp/audiveris.deb && \
     ls /opt/audiveris/bin
 
-ENV JAVA_TOOL_OPTIONS="-Djava.awt.headless=true"
+ENV JAVA_TOOL_OPTIONS="-Djava.awt.headless=true -XX:MaxRAMPercentage=70"
 ENV TESSDATA_PREFIX=/usr/share/tesseract-ocr/5/tessdata
 WORKDIR /app
 COPY requirements.txt .

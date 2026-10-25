@@ -19,15 +19,6 @@ const corsFor = (origin: string | null) => ({
 const TTL_S = 300;
 const LIMITE_DIA = Number(Deno.env.get('OMR_DAILY_LIMIT') ?? '5');
 
-const aalDe = (authHeader: string): string | undefined => {
-  try {
-    const t = authHeader.replace(/^Bearer\s+/i, '').split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-    return JSON.parse(atob(t)).aal;
-  } catch { return undefined; }
-};
-const adminValido = (user: any, authHeader: string) =>
-  user?.app_metadata?.role === 'admin' && (!user.factors?.some((f: any) => f.status === 'verified') || aalDe(authHeader) === 'aal2');
-
 const b64url = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
 async function emitirBilhete(secret: string, userId: string) {
@@ -54,7 +45,7 @@ Deno.serve(async (req) => {
 
   const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false, autoRefreshToken: false } });
 
-  if (!adminValido(user, authHeader)) {
+  if (user.app_metadata?.role !== 'admin') {
     // aluno: precisa de pelo menos um curso ativo e respeita o limite diário
     const hoje = new Date().toISOString().slice(0, 10);
     const { data: matriculas } = await db.from('inscricoes').select('id')
