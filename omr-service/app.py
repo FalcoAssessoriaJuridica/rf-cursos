@@ -118,8 +118,12 @@ async def convert(file: UploadFile = File(...), x_api_key: str = Header(default=
 
         results = sorted(glob.glob(os.path.join(outdir, "**", "*.mxl"), recursive=True))
         if not results:
-            tail = log.decode("utf-8", "replace")[-600:]
-            raise HTTPException(status_code=422, detail="Não foi possível reconhecer a partitura. " + tail)
+            # o registro técnico do Audiveris fica só no log do servidor; quem envia vê uma mensagem clara
+            print("Audiveris não gerou MusicXML:\n" + log.decode("utf-8", "replace")[-1500:], flush=True)
+            raise HTTPException(
+                status_code=422,
+                detail="Não foi possível reconhecer a partitura. Use um PDF de partitura digital (não foto nem digitalização torta) e tente de novo.",
+            )
         return FileResponse(
             results[0], media_type="application/vnd.recordare.musicxml",
             filename="partitura.mxl", background=cleanup,
