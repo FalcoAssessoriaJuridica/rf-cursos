@@ -23,6 +23,9 @@ const RECORRENCIA: Record<string, { interval: 'day' | 'month' | 'year'; interval
 };
 const TRIAL_DIAS = 7;                       // só no plano de 30 dias e só na 1ª assinatura daquele curso
 const ATIVAS = ['active', 'trialing', 'past_due'];
+// Tudo o que este sistema cria no Stripe leva esta etiqueta e o prefixo no nome do produto: a conta é compartilhada com outros sistemas.
+const APP = 'rf-cursos';
+const PREFIXO = 'RF Cursos - ';
 
 Deno.serve(async (req) => {
   const cors = corsFor(req.headers.get('Origin'));
@@ -54,7 +57,7 @@ Deno.serve(async (req) => {
         if (!(c as any).deleted) return perfil.stripe_customer_id as string;
       } catch { /* segue e cria outro */ }
     }
-    const c = await stripe.customers.create({ email: perfil.email ?? user.email ?? undefined, name: perfil.nome_completo ?? undefined, metadata: { perfil_id: user.id } });
+    const c = await stripe.customers.create({ email: perfil.email ?? user.email ?? undefined, name: perfil.nome_completo ?? undefined, metadata: { perfil_id: user.id, app: APP } });
     await db.from('perfis').update({ stripe_customer_id: c.id }).eq('id', user.id);
     return c.id;
   };
@@ -72,7 +75,7 @@ Deno.serve(async (req) => {
         if (previas?.some((a) => ATIVAS.includes(a.status))) return json({ error: 'Você já tem uma assinatura ativa deste curso. Gerencie em Meu perfil.' }, 409);
 
         const customer = await ensureCustomer();
-        const meta = { perfil_id: user.id, curso_id: cursoId, prazo };
+        const meta = { perfil_id: user.id, curso_id: cursoId, prazo, app: APP };
         const comum = { customer, locale: 'pt-BR' as const, success_url: `${APP_URL}/student/pagamento/sucesso?curso=${cursoId}`, cancel_url: `${APP_URL}/student/planos` };
 
         if (metodo === 'pix') {
@@ -85,7 +88,7 @@ Deno.serve(async (req) => {
             payment_method_types: ['pix'],
             line_items: [{
               quantity: 1,
-              price_data: { currency: 'brl', unit_amount: preco.valor_centavos, ...(curso.stripe_product_id ? { product: curso.stripe_product_id } : { product_data: { name: curso.titulo } }) },
+              price_data: { currency: 'brl', unit_amount: preco.valor_centavos, ...(curso.stripe_product_id ? { product: curso.stripe_product_id } : { product_data: { name: PREFIXO + curso.titulo, metadata: { curso_id: cursoId, app: APP } } }) },
             }],
             metadata: { ...meta, metodo: 'pix' },
             payment_intent_data: { metadata: { ...meta, metodo: 'pix' } },
@@ -126,11 +129,11 @@ Deno.serve(async (req) => {
         let productId = curso.stripe_product_id as string | null;
         if (productId) { try { const pr = await stripe.products.retrieve(productId); if ((pr as any).deleted) productId = null; } catch { productId = null; } }
         if (!productId) {
-          const pr = await stripe.products.create({ name: curso.titulo, metadata: { curso_id: cursoId } });
+          const pr = await stripe.products.create({ name: PREFIXO + curso.titulo, metadata: { curso_id: cursoId, app: APP } });
           productId = pr.id;
           await db.from('cursos').update({ stripe_product_id: productId }).eq('id', cursoId);
         }
-        const price = await stripe.prices.create({ product: productId, currency: 'brl', unit_amount: valor, recurring: RECORRENCIA[prazo], metadata: { curso_id: cursoId, prazo } });
+        const price = await stripe.prices.create({ product: productId, currency: 'brl', unit_amount: valor, recurring: RECORRENCIA[prazo], metadata: { curso_id: cursoId, prazo, app: APP } });
 
         const { data: antigo } = await db.from('precos_curso').select('stripe_price_id').eq('curso_id', cursoId).eq('prazo', prazo).maybeSingle();
         const { error } = await db.from('precos_curso').upsert(

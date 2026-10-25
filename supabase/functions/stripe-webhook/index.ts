@@ -8,6 +8,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import Stripe from 'https://esm.sh/stripe@17.7.0?target=denonext';
 
+const APP = 'rf-cursos';   // a conta Stripe é compartilhada: só processamos o que este sistema criou (metadata.app)
 const TOLERANCIA_DIAS = 3;
 const ABERTAS = ['active', 'trialing', 'past_due'];
 const ENCERRADAS = ['canceled', 'unpaid', 'incomplete_expired'];
@@ -55,7 +56,8 @@ const somarPeriodo = (inicio: Date, prazo: string) => {
 };
 
 async function conceder(s: Stripe.Checkout.Session) {
-  const { perfil_id: perfilId, curso_id: cursoId, prazo } = (s.metadata ?? {}) as Record<string, string>;
+  const { perfil_id: perfilId, curso_id: cursoId, prazo, app } = (s.metadata ?? {}) as Record<string, string>;
+  if (app !== APP) return;   // pagamento de outro sistema da mesma conta
   if (!perfilId || !cursoId || !['mensal', 'semestral', 'anual'].includes(prazo)) { console.warn('pagamento avulso sem metadados:', s.id); return; }
 
   // 1º registra (a chave única impede liberar duas vezes); se algo falhar depois, desfaz para o Stripe poder repetir o evento
@@ -79,13 +81,9 @@ async function conceder(s: Stripe.Checkout.Session) {
 
 async function sincronizar(subOriginal: Stripe.Subscription) {
   let sub = subOriginal;
-  let meta = sub.metadata ?? {};
-  let { perfil_id: perfilId, curso_id: cursoId, prazo } = meta as Record<string, string>;
-  if (!perfilId || !cursoId) {
-    const { data: ja } = await db.from('assinaturas').select('perfil_id, curso_id, prazo').eq('stripe_subscription_id', sub.id).maybeSingle();
-    if (!ja) { console.warn('assinatura sem metadados, ignorada:', sub.id); return; }
-    perfilId = ja.perfil_id; cursoId = ja.curso_id; prazo = ja.prazo ?? prazo;
-  }
+  const { perfil_id: perfilId, curso_id: cursoId, prazo, app } = (sub.metadata ?? {}) as Record<string, string>;
+  if (app !== APP) return;   // assinatura de outro sistema da mesma conta
+  if (!perfilId || !cursoId) { console.warn('assinatura rf-cursos sem perfil/curso, ignorada:', sub.id); return; }
 
   sub = await aplicarUmTestePorCartao(sub, perfilId);
   // o fim do período está na assinatura (API antiga) ou no 1º item (API nova)

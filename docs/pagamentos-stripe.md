@@ -9,6 +9,10 @@ O aluno cria a conta em `/cadastro`, escolhe o curso em `/student/planos` e paga
 Proteções grátis: o **CPF** é obrigatório no cadastro (validado pelos dígitos; **um CPF por conta**) e o **teste grátis vale uma vez por cartão**
 (o webhook compara a impressão digital do cartão no Stripe; se já foi usado em outro teste, o teste é encerrado e a cobrança começa na hora).
 
+Conta Stripe compartilhada: tudo o que o RF Cursos cria leva a etiqueta `app = rf-cursos` e os produtos se chamam `RF Cursos - <curso>`;
+o webhook ignora qualquer evento sem essa etiqueta (assinaturas/pagamentos de outros sistemas da mesma conta). Dê ao destino do webhook um nome claro
+(ex.: `RF Cursos - Supabase (teste)`).
+
 Como o acesso funciona: o webhook só mexe na **matrícula** (`inscricoes.data_expiracao` = fim do período pago + 3 dias de tolerância).
 Pagamento que falha = a data simplesmente deixa de avançar e o acesso expira. Matrícula "bloqueado" (manual) nunca é reaberta.
 
