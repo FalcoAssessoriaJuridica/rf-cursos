@@ -13,6 +13,7 @@ import Acervo from './pages/admin/Acervo';
 import Precos from './pages/admin/Precos';
 import Cadastro from './pages/Cadastro';
 import Legal from './pages/Legal';
+import UpdatePrompt from './components/UpdatePrompt';
 import Planos from './pages/student/Planos';
 import PagamentoSucesso from './pages/student/PagamentoSucesso';
 import CourseList from './pages/student/CourseList';
@@ -72,6 +73,7 @@ function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
+        <UpdatePrompt />
         <Routes>
           {/* Public Routes */}
           <Route element={<AuthLayout />}>

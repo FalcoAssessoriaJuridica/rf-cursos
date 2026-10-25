@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Camera, Check, Loader2, Trash2 } from 'lucide-react';
 import Avatar from '../../components/Avatar';
+import InstallApp from '../../components/InstallApp';
 import { loadProfile, saveProfile, uploadAvatar, removeAvatar } from '../../lib/profile';
 import { changePassword, MIN_PASSWORD, isDemoSession } from '../../lib/auth';
 import { PRAZOS, STATUS_ASSINATURA, minhasAssinaturas, meusPagamentosPix, pagamentos } from '../../lib/pagamentos';
@@ -248,6 +249,7 @@ export default function Profile() {
                 </form>
             </div>
 
+            <InstallApp />
             {!isDemoSession() && <SubscriptionsCard />}
             {!isDemoSession() && <PasswordCard />}
         </div>

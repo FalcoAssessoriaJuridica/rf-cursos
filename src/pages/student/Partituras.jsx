@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FileMusic, Loader2, Upload } from 'lucide-react';
+import { CheckCircle2, FileMusic, Loader2, Upload } from 'lucide-react';
 import { loadLibrary } from '../../lib/scores';
+import { listOfflineScores, renewOfflineScores } from '../../lib/offlineScores';
+import useOnline from '../../lib/useOnline';
 import ScoreViewer from '../../score/ScoreViewer';
 import { convertToMusicXml, isMusicXml, isPdfOrImage } from '../../score/omr';
 
@@ -18,12 +20,26 @@ export default function Partituras() {
     const [error, setError] = useState('');
     const [fromOmr, setFromOmr] = useState(false);
     const [library, setLibrary] = useState(null);
+    const [saved, setSaved] = useState([]);
+    const online = useOnline();
 
     useEffect(() => {
         let alive = true;
-        loadLibrary().then((l) => alive && setLibrary(l)).catch(() => alive && setLibrary([]));
+        listOfflineScores().then((l) => alive && setSaved(l)).catch(() => {});
+        if (!navigator.onLine) { setLibrary([]); return () => { alive = false; }; }
+        loadLibrary()
+            .then(async (l) => {
+                if (!alive) return;
+                setLibrary(l);
+                // biblioteca carregada: renova as cópias que ainda valem e apaga as de partituras que a pessoa não alcança mais
+                const ids = l.flatMap((c) => [...c.geral, ...c.aulas.flatMap((a) => a.scores)].map((s) => s.id));
+                await renewOfflineScores(ids).catch(() => {});
+                listOfflineScores().then((x) => alive && setSaved(x)).catch(() => {});
+            })
+            .catch(() => alive && setLibrary([]));
         return () => { alive = false; };
     }, []);
+    const savedIds = new Set(saved.map((x) => x.id));
 
     const openFile = async (file) => {
         if (!file) return;
@@ -52,10 +68,22 @@ export default function Partituras() {
                 <p className="mt-1 text-sm text-text-muted">Abra uma partitura, ouça a melodia e acompanhe cada nota com o cursor. Funciona com uma única pauta (clave de Sol) ou com várias partes.</p>
             </div>
 
+            {saved.length > 0 && (
+                <section aria-label="Salvas neste aparelho" className="space-y-3">
+                    <h2 className="text-xs font-bold uppercase tracking-widest text-primary">Salvas neste aparelho {online ? '' : '(funcionam sem internet)'}</h2>
+                    <ul className="grid gap-2 md:grid-cols-2">
+                        {saved.map((s) => (
+                            <li key={s.id}><Link to={`/student/partituras/${s.id}`} className="bevel flex items-center gap-3 rounded-xl p-3"><CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" /><span className="truncate text-sm font-semibold">{s.titulo}</span></Link></li>
+                        ))}
+                    </ul>
+                </section>
+            )}
+
             <section aria-label="Biblioteca" className="space-y-4">
                 <h2 className="text-xs font-bold uppercase tracking-widest text-primary">Biblioteca dos seus cursos</h2>
                 {library === null && <p className="text-sm text-text-muted">Carregando…</p>}
-                {library?.length === 0 && <p className="text-sm text-text-muted">Quando seus professores publicarem partituras nos cursos ou nas aulas, elas aparecem aqui.</p>}
+                {library?.length === 0 && !online && <p className="text-sm text-text-muted">Sem internet. A biblioteca dos cursos volta quando a conexão voltar.</p>}
+                {library?.length === 0 && online && <p className="text-sm text-text-muted">Quando seus professores publicarem partituras nos cursos ou nas aulas, elas aparecem aqui.</p>}
                 {library?.map((c) => (
                     <div key={c.id} className="liquid-glass rounded-2xl p-4 md:p-5 space-y-3">
                         <h3 className="font-bold">{c.titulo}</h3>
@@ -64,7 +92,7 @@ export default function Partituras() {
                                 <p className="text-xs font-semibold text-text-muted mb-1">{g.titulo}</p>
                                 <ul className="grid gap-2 md:grid-cols-2">
                                     {g.scores.map((s) => (
-                                        <li key={s.id}><Link to={`/student/partituras/${s.id}`} className="bevel flex items-center gap-3 rounded-xl p-3"><FileMusic className="h-5 w-5 text-primary shrink-0" /><span className="truncate text-sm font-semibold">{s.titulo}</span></Link></li>
+                                        <li key={s.id}><Link to={`/student/partituras/${s.id}`} className="bevel flex items-center gap-3 rounded-xl p-3"><FileMusic className="h-5 w-5 text-primary shrink-0" /><span className="truncate text-sm font-semibold">{s.titulo}</span>{savedIds.has(s.id) && <CheckCircle2 className="ml-auto h-4 w-4 shrink-0 text-green-500" aria-label="Salva neste aparelho" />}</Link></li>
                                     ))}
                                 </ul>
                             </div>

@@ -8,6 +8,7 @@ import ThemeToggle from '../components/ThemeToggle';
 import { DEMO_ENABLED } from '../lib/demoCourses';
 import Avatar from '../components/Avatar';
 import { signOut, isDemoSession } from '../lib/auth';
+import OfflineBanner from '../components/OfflineBanner';
 
 export default function MainLayout({ isAdmin = false }) {
     const location = useLocation();
@@ -185,6 +186,7 @@ export default function MainLayout({ isAdmin = false }) {
 
                 <main className="flex-1 overflow-auto">
                     <div className="p-4 sm:p-6 lg:p-8 max-md:pb-24 max-w-7xl mx-auto">
+                        <OfflineBanner />
                         <Outlet />
                     </div>
                 </main>

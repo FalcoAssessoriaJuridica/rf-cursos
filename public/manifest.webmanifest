@@ -1,16 +1,19 @@
 {
+    "id": "/student/partituras",
     "short_name": "RF Cursos",
-    "name": "RF Cursos - Plataforma de Música",
+    "name": "RF Music Academy",
+    "description": "Cursos de música e partituras, inclusive sem internet.",
+    "lang": "pt-BR",
     "icons": [
-        {
-            "src": "logo-rf.png",
-            "sizes": "512x512",
-            "type": "image/png",
-            "purpose": "any maskable"
-        }
+        { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+        { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+        { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
     ],
-    "start_url": ".",
+    "start_url": "/student/partituras?origem=app",
+    "scope": "/",
     "display": "standalone",
+    "orientation": "any",
     "theme_color": "#09090b",
-    "background_color": "#09090b"
+    "background_color": "#09090b",
+    "categories": ["education", "music"]
 }

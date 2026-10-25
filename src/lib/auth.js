@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { DEMO_ENABLED } from './demoCourses';
+import { clearOfflineScores } from './offlineScores';
 
 // Autenticação pelo Supabase Auth. A SESSÃO (JWT) é a fonte da verdade e quem protege os dados é o banco (RLS).
 // As chaves rf_* do localStorage só espelham a sessão para a interface (rota, nome no menu); adulterá-las pelo
@@ -34,19 +35,24 @@ async function mirrorUser(user) {
 // Roda antes de desenhar o app: valida a sessão guardada e limpa qualquer papel forjado no localStorage.
 export async function initAuth() {
     try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error } = await supabase.auth.getSession();
         if (session?.user) {
             if (!isDemoSession()) await mirrorUser(session.user);
         } else if (!isDemoSession()) {
-            clearLocalSession();
+            // Sem internet não dá para renovar o token: mantém o espelho local (a pessoa continua vendo as partituras salvas).
+            // Quem protege os dados é o banco: sem sessão válida nenhuma consulta é atendida.
+            const semRede = (typeof navigator !== 'undefined' && !navigator.onLine) || error?.name === 'AuthRetryableFetchError';
+            if (!(semRede && get('rf_role'))) clearLocalSession();
         }
     } catch {
-        if (!isDemoSession()) clearLocalSession();
+        const semRede = typeof navigator !== 'undefined' && !navigator.onLine;
+        if (!isDemoSession() && !(semRede && get('rf_role'))) clearLocalSession();
     }
     supabase.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_OUT' && !isDemoSession()) {
             const hadSession = !!get('rf_role');
             clearLocalSession();
+            clearOfflineScores();
             if (hadSession && !/^\/(login|recuperar-senha|redefinir-senha)?$/.test(window.location.pathname)) window.location.assign('/login');
         } else if (event === 'USER_UPDATED' && session?.user && !isDemoSession()) {
             mirrorUser(session.user);
@@ -75,6 +81,7 @@ export async function signOut() {
     // scope 'local': sair aqui NÃO derruba a sessão da mesma conta em outros aparelhos (o padrão do supabase-js é 'global')
     try { await supabase.auth.signOut({ scope: 'local' }); } catch { /* encerra a sessão local mesmo sem rede */ }
     clearLocalSession();
+    await clearOfflineScores();   // as cópias das partituras ficam só com quem está logado
 }
 
 // "Esqueci minha senha": o e-mail traz um link para /redefinir-senha. A resposta é sempre a mesma (não revela se o e-mail existe).

@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
+import { VitePWA } from 'vite-plugin-pwa'
 import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
@@ -20,6 +21,29 @@ export default defineConfig(({ mode }) => {
     optimizeDeps: { include: ['remotion', '@remotion/player'] },
     plugins: [
       react(),
+      // PWA: guarda o aplicativo (telas e sons da bateria) no aparelho para abrir sem internet. Nada vindo do Supabase/Stripe é guardado
+      // pelo service worker (dados e login passam sempre pela rede); as partituras salvas ficam no IndexedDB (src/lib/offlineScores.js).
+      // O manifesto é o arquivo public/manifest.webmanifest. Atualização com aviso ao aluno (registerType: 'prompt'), sem recarregar sozinho.
+      VitePWA({
+        registerType: 'prompt',
+        injectRegister: false,
+        manifest: false,
+        devOptions: { enabled: false },
+        workbox: {
+          globPatterns: ['**/*.{js,css,html,svg,webmanifest}', 'drums/**/*.{mp3,json}', 'logo-rf.png', 'icons/*.png'],
+          // landing (marketing) e conteúdo de exemplo não entram no cache inicial
+          globIgnores: ['**/Landing-*', 'demo/**', 'partituras-exemplo/**'],
+          maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+          navigateFallback: '/index.html',
+          navigateFallbackDenylist: [/^\/supabase-api/, /^\/__/, /^\/api\//],
+          cleanupOutdatedCaches: true,
+          runtimeCaching: [
+            // imagens do app e capas públicas dos cursos: guardadas conforme o uso
+            { urlPattern: ({ request }) => request.destination === 'image', handler: 'StaleWhileRevalidate', options: { cacheName: 'imagens', expiration: { maxEntries: 80, maxAgeSeconds: 30 * 24 * 3600 } } },
+            { urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\//, handler: 'StaleWhileRevalidate', options: { cacheName: 'fontes', expiration: { maxEntries: 20, maxAgeSeconds: 365 * 24 * 3600 } } },
+          ],
+        },
+      }),
       {
         // Só em desenvolvimento: guarda a configuração dos cursos demo (capas/matrículas) em demo-state.json
         name: 'demo-state',
