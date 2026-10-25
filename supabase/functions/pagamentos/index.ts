@@ -1,6 +1,8 @@
 // Edge Function `pagamentos` (Deno): checkout do Stripe, portal do cliente e cadastro de preços (admin).
 // Deploy: verify_jwt = LIGADO (padrão). Segredos: STRIPE_SECRET_KEY, ALLOWED_ORIGIN (o 1º valor é o endereço do app) e os já injetados
 // (SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY). Exige 0010_pagamentos.sql.
+// O portal do cliente é PRÓPRIO do RF Cursos: a função cria (uma vez) uma configuração de portal e guarda o id em `configuracoes`
+// (chave stripe_portal_test / stripe_portal_live), em vez de usar o portal padrão da conta, que é compartilhado com outros sistemas.
 // Ações (POST, JSON): checkout {curso_id, prazo, metodo?: 'cartao'|'pix'} · portal {} · set_price {curso_id, prazo, valor_centavos} (admin) · remove_price {curso_id, prazo} (admin)
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import Stripe from 'https://esm.sh/stripe@17.7.0?target=denonext';
@@ -62,6 +64,35 @@ Deno.serve(async (req) => {
     return c.id;
   };
 
+  // Configuração de portal do RF Cursos (cancelar no fim do período, trocar cartão, ver faturas; sem troca de plano).
+  // O id fica guardado por modo (teste/real); se não existir mais no Stripe, é recriada.
+  const portalConfig = async () => {
+    const modo = /^(sk|rk)_live/.test(secret) ? 'live' : 'test';
+    const chave = `stripe_portal_${modo}`;
+    const { data } = await db.from('configuracoes').select('valor').eq('chave', chave).maybeSingle();
+    if (data?.valor) {
+      try { const c = await stripe.billingPortal.configurations.retrieve(data.valor); if (c.active) return c.id; } catch { /* recria */ }
+    }
+    const c = await stripe.billingPortal.configurations.create({
+      name: 'RF Cursos',
+      metadata: { app: APP },
+      business_profile: { headline: 'RF Music Academy: gerencie sua assinatura' },
+      default_return_url: `${APP_URL}/student/perfil`,
+      features: {
+        invoice_history: { enabled: true },
+        payment_method_update: { enabled: true },
+        customer_update: { enabled: true, allowed_updates: ['email', 'name', 'phone'] },
+        subscription_cancel: {
+          enabled: true,
+          mode: 'at_period_end',
+          cancellation_reason: { enabled: true, options: ['too_expensive', 'missing_features', 'switched_service', 'unused', 'other'] },
+        },
+      },
+    });
+    await db.from('configuracoes').upsert({ chave, valor: c.id, descricao: 'Portal do cliente do Stripe (RF Cursos)' }, { onConflict: 'chave' });
+    return c.id;
+  };
+
   try {
     switch (p.action) {
       case 'checkout': {
@@ -111,7 +142,7 @@ Deno.serve(async (req) => {
 
       case 'portal': {
         const customer = await ensureCustomer();
-        const session = await stripe.billingPortal.sessions.create({ customer, return_url: `${APP_URL}/student/perfil` });
+        const session = await stripe.billingPortal.sessions.create({ customer, configuration: await portalConfig(), return_url: `${APP_URL}/student/perfil` });
         return json({ url: session.url });
       }
 

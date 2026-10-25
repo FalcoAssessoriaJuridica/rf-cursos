@@ -46,7 +46,15 @@ Pagamento que falha = a data simplesmente deixa de avançar e o acesso expira. M
 
 ## Passar para valer (modo real)
 
-Troque `STRIPE_SECRET_KEY` pela chave `sk_live_...`, crie o webhook de novo no modo real (novo `whsec_...`) e **salve cada preço de novo** em `/admin/precos`
+**Portal do cliente próprio:** a função `pagamentos` cria sozinha uma configuração de portal "RF Cursos" na primeira vez que um aluno abre "Gerenciar pagamento"
+(cancelar no fim do período, trocar cartão, ver faturas; sem troca de plano) e guarda o id em `configuracoes` (`stripe_portal_test` / `stripe_portal_live`).
+Não depende do portal padrão da conta. Nada a configurar à mão.
+
+**Chave restrita** (recomendado em produção, no lugar da chave secreta completa): Developers → API keys → Create restricted key, com estas permissões
+em **Write**: Customers, Checkout Sessions, Customer portal, Products, Prices, Subscriptions; e **Read**: PaymentMethods. Se o Stripe recusar alguma
+chamada por permissão, a mensagem de erro diz qual falta; é só marcá-la.
+
+Troque `STRIPE_SECRET_KEY` pela chave `sk_live_...` (ou a restrita `rk_live_...`), crie o webhook de novo no modo real (novo `whsec_...`) e **salve cada preço de novo** em `/admin/precos`
 (os produtos/preços do modo teste não existem no modo real; a função recria sozinha). A conta Stripe precisa estar ativada (CNPJ).
 
 ## O que NÃO está incluído
