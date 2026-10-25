@@ -7,7 +7,7 @@ automática (para continuar, paga de novo, e o que sobrar do acesso é somado). 
 O aluno cria a conta em `/cadastro`, escolhe o curso em `/student/planos` e paga no Checkout do Stripe. O acesso é liberado pelo webhook.
 
 Proteções grátis: o **CPF** é obrigatório no cadastro (validado pelos dígitos; **um CPF por conta**) e o **teste grátis vale uma vez por cartão**
-(o webhook compara a impressão digital do cartão no Stripe; se já foi usado em outro teste, o teste é encerrado e a cobrança começa na hora).
+(o webhook compara a impressão digital do cartão no Stripe; se já foi usado em outro teste, a assinatura é cancelada **sem cobrança** e o aluno é avisado; ele pode assinar de novo, sem teste).
 
 Conta Stripe compartilhada: tudo o que o RF Cursos cria leva a etiqueta `app = rf-cursos` e os produtos se chamam `RF Cursos - <curso>`;
 o webhook ignora qualquer evento sem essa etiqueta (assinaturas/pagamentos de outros sistemas da mesma conta). Dê ao destino do webhook um nome claro
@@ -30,7 +30,7 @@ Pagamento que falha = a data simplesmente deixa de avançar e o acesso expira. M
 
 1. **Stripe** (modo teste ligado): Developers → API keys → copie a **Secret key** (`sk_test_...`).
    Em Settings → Billing → **Customer portal**, ative e salve (cancelar assinatura, trocar cartão, ver faturas).
-2. **SQL Editor do Supabase**: rodar `0010_pagamentos.sql` e depois `0011_pix_avulso.sql`.
+2. **SQL Editor do Supabase**: rodar `0010_pagamentos.sql` e depois `0011_pix_avulso.sql`, `0012_inscricoes_unicas.sql` e `0013_assinaturas_motivo.sql`.
 3. **Supabase → Edge Functions → Secrets**: criar `STRIPE_SECRET_KEY` com a chave do passo 1. (`ALLOWED_ORIGIN` já existe.)
 4. **Publicar as 3 funções** (Edge Functions → Deploy a new function → Via editor; cole o código de cada arquivo):
    - `pagamentos` — **Verify JWT: ligado**

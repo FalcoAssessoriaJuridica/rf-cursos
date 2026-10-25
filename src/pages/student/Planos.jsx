@@ -83,7 +83,7 @@ function CursoPlano({ curso, comAssinatura }) {
                                 {pix
                                     ? `Pagamento único de ${brl(preco?.valor_centavos)}: acesso por ${info?.label} a partir da confirmação. Não renova sozinho; para continuar, pague de novo (o que sobrar é somado).`
                                     : comTeste
-                                    ? `Cartão obrigatório; um teste grátis por cartão. Sem cobrança por 7 dias; depois ${brl(preco?.valor_centavos)} a cada 30 dias. Cancele quando quiser.`
+                                    ? `Cartão obrigatório. O teste grátis vale uma vez por cartão (se já usado, nada é cobrado e você assina sem teste). Sem cobrança por 7 dias; depois ${brl(preco?.valor_centavos)} a cada 30 dias. Cancele quando quiser.`
                                     : `Cobrança recorrente de ${brl(preco?.valor_centavos)} ${info?.renova}. Cancele quando quiser.`}
                             </p>
                             {erro && <p role="alert" className="text-center text-xs font-semibold text-red-500">{erro}</p>}

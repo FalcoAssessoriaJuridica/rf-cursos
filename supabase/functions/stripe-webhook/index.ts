@@ -19,8 +19,9 @@ const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SE
 const isoDate = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 const ts = (s?: number | null) => (s ? new Date(s * 1000).toISOString() : null);
 
-// Um teste grátis por cartão: se o cartão desta assinatura já foi usado em outro teste, encerra o teste agora (cobra já).
-// Devolve a assinatura atualizada (ou a mesma, se nada mudou). Qualquer falha aqui não impede de liberar/registrar o acesso.
+// Um teste grátis por cartão: se o cartão desta assinatura já foi usado em outro teste, a assinatura é CANCELADA sem cobrança
+// (o aluno aceitou "7 dias grátis", não uma cobrança imediata). Ele pode assinar de novo, agora sem teste grátis.
+// Qualquer falha aqui não impede de liberar/registrar o acesso.
 async function aplicarUmTestePorCartao(sub: Stripe.Subscription, perfilId: string): Promise<Stripe.Subscription> {
   if (sub.status !== 'trialing' || !sub.trial_end) return sub;
   try {
@@ -38,8 +39,9 @@ async function aplicarUmTestePorCartao(sub: Stripe.Subscription, perfilId: strin
     if (!uso) { await db.from('cartoes_teste').insert({ fingerprint, perfil_id: perfilId, stripe_subscription_id: sub.id }); return sub; }
     if (uso.stripe_subscription_id === sub.id) return sub;   // mesmo teste, evento repetido
 
-    console.warn('cartão já usou teste grátis; cobrando agora:', sub.id);
-    return await stripe.subscriptions.update(sub.id, { trial_end: 'now', metadata: { ...sub.metadata, teste_negado: '1' } });
+    console.warn('cartão já usou teste grátis; cancelando sem cobrança:', sub.id);
+    await stripe.subscriptions.update(sub.id, { metadata: { ...sub.metadata, teste_negado: '1' } });
+    return await stripe.subscriptions.cancel(sub.id);
   } catch (e) {
     console.error('checagem de teste por cartão falhou:', (e as Error).message);
     return sub;
@@ -91,6 +93,7 @@ async function sincronizar(subOriginal: Stripe.Subscription) {
   const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer?.id;
   const { error } = await db.from('assinaturas').upsert({
     perfil_id: perfilId, curso_id: cursoId, prazo, stripe_customer_id: customerId, stripe_subscription_id: sub.id,
+    motivo: sub.metadata?.teste_negado ? 'teste_cartao_repetido' : null,
     status: sub.status, trial_fim: ts(sub.trial_end), periodo_fim: ts(fim), cancela_no_fim: !!sub.cancel_at_period_end,
     atualizado_em: new Date().toISOString(),
   }, { onConflict: 'stripe_subscription_id' });
@@ -105,8 +108,9 @@ async function sincronizar(subOriginal: Stripe.Subscription) {
     const { error: eM } = await db.from('inscricoes').upsert({ perfil_id: perfilId, curso_id: cursoId, status: 'ativo', data_expiracao: expira }, { onConflict: 'perfil_id,curso_id' });
     if (eM) throw new Error(eM.message);
   } else if (ENCERRADAS.includes(sub.status) && matricula) {
-    // cancelada: o acesso vai até onde foi pago (sem tolerância)
-    await db.from('inscricoes').update({ data_expiracao: isoDate(fim * 1000) }).eq('id', matricula.id);
+    // cancelada: o acesso vai até onde foi pago (sem tolerância). Só encurta a data que veio desta assinatura (não a vitalícia nem a de um Pix, por exemplo).
+    const doPeriodo = isoDate(fim * 1000 + TOLERANCIA_DIAS * 86400_000);
+    if (matricula.data_expiracao && matricula.data_expiracao <= doPeriodo) await db.from('inscricoes').update({ data_expiracao: isoDate(fim * 1000) }).eq('id', matricula.id);
   }
 }
 

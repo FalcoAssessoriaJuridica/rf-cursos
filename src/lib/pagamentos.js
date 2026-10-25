@@ -40,7 +40,7 @@ export async function carregarCatalogo() {
 export async function minhasAssinaturas() {
     const { data, error } = await supabase
         .from('assinaturas')
-        .select('id, curso_id, prazo, status, trial_fim, periodo_fim, cancela_no_fim, cursos(titulo)')
+        .select('id, curso_id, prazo, status, motivo, trial_fim, periodo_fim, cancela_no_fim, cursos(titulo)')
         .order('criado_em', { ascending: false });
     if (error) throw new Error(error.message);
     return data || [];

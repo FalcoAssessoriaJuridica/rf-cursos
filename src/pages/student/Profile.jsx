@@ -36,7 +36,7 @@ function SubscriptionsCard() {
     const [erro, setErro] = useState('');
 
     useEffect(() => {
-        minhasAssinaturas().then(setLista).catch(() => setLista([]));
+        minhasAssinaturas().then((l) => setLista(l.filter((a) => !a.motivo))).catch(() => setLista([]));
         meusPagamentosPix().then(setPix).catch(() => setPix([]));
     }, []);
     if (!lista?.length && !pix.length) return null;
