@@ -91,6 +91,10 @@ async function sincronizar(subOriginal: Stripe.Subscription) {
   if (app !== APP) return;   // assinatura de outro sistema da mesma conta
   if (!perfilId || !cursoId) { console.warn('assinatura rf-cursos sem perfil/curso, ignorada:', sub.id); return; }
 
+  // O Stripe pode entregar os avisos fora de ordem (ex.: "deleted" antes de "created") e o conteúdo do aviso é um retrato antigo.
+  // Por isso o estado vem sempre da assinatura ATUAL no Stripe; o aviso só diz "algo mudou nesta assinatura".
+  try { sub = await stripe.subscriptions.retrieve(sub.id); } catch (e) { console.warn('não consegui reler a assinatura, usando o aviso:', (e as Error).message); }
+
   const checagem = await aplicarUmTestePorCartao(sub, perfilId);
   sub = checagem.sub;
   const negado = checagem.negado;
