@@ -5,6 +5,7 @@ import { signOut } from '../../lib/auth';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/Card';
+import StudentsList from '../../components/StudentsList';
 import { Plus, Search, MoreVertical, ShieldCheck, ShieldOff, Calendar, UserPlus, Pencil, X, Trash2, LogIn } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { DEMO_COURSES, DEMO_STUDENTS, DEMO_PASSWORD, getDemoEnrollments, setDemoEnrollments, readDemoProgress, accessStatus, accessLabel, addDaysISO } from '../../lib/demoCourses';
@@ -317,6 +318,63 @@ export default function Students() {
         s.email.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    // Uma única lista alimenta a tabela (computador) e os cartões (celular)
+    const rows = [
+        ...(filteredStudents || []).filter(Boolean).map((student) => {
+            const activeInscr = student.inscricoes?.[0];
+            const isExpired = activeInscr?.data_expiracao && new Date(activeInscr.data_expiracao) < new Date();
+            const status = activeInscr?.status === 'bloqueado' || isExpired ? 'Bloqueado' : 'Ativo';
+            const ativo = status === 'Ativo';
+            return {
+                key: student.id,
+                nome: student.nome_completo || 'Sem Nome',
+                email: student.email,
+                demo: false,
+                chips: (student.inscricoes || []).map((ins) => {
+                    const total = lessonStats[ins.curso_id] || 0;
+                    const feitas = student.progresso?.filter((p) => p.concluida && aulaIdToCursoId[p.aula_id] === ins.curso_id).length || 0;
+                    return { key: ins.id, titulo: ins.cursos?.titulo, percent: total > 0 ? Math.round((feitas / total) * 100) : 0, tone: 'ok' };
+                }),
+                semCursos: false,
+                statusLabel: status,
+                statusTone: ativo ? 'ok' : 'bad',
+                expira: activeInscr?.data_expiracao ? new Date(activeInscr.data_expiracao).toLocaleDateString() : 'Vitalício',
+                acoes: [
+                    { key: 'edit', label: 'Editar', title: 'Editar aluno', Icon: Pencil, cor: 'text-primary', onClick: () => openModal(student) },
+                    { key: 'toggle', label: ativo ? 'Bloquear' : 'Liberar', title: ativo ? 'Bloquear aluno' : 'Desbloquear aluno', Icon: ativo ? ShieldOff : ShieldCheck, cor: ativo ? 'text-red-500' : 'text-green-500', onClick: () => toggleStatus(student) },
+                    { key: 'del', label: 'Excluir', title: 'Excluir aluno', Icon: Trash2, cor: 'text-red-500', onClick: () => handleDelete(student) },
+                ],
+            };
+        }),
+        ...filteredDemoStudents.map((st) => {
+            const enr = st.cursos_info;
+            const ativos = enr.filter((e) => e.status === 'ativo').length;
+            const label = enr.length === 0 ? 'Sem cursos' : ativos === enr.length ? 'Ativo' : ativos === 0 ? 'Bloqueado' : 'Parcial';
+            const todosBloqueados = enr.length > 0 && enr.every((e) => e.bloqueado);
+            return {
+                key: st.id,
+                nome: st.nome_completo,
+                email: `${st.email} · senha: ${DEMO_PASSWORD}`,
+                demo: true,
+                chips: enr.map((ci) => ({
+                    key: ci.curso_id, titulo: ci.titulo, percent: ci.percent,
+                    sufixo: ci.status === 'bloqueado' ? 'Bloqueado' : accessLabel(ci.expira_em),
+                    tone: ci.status === 'ativo' ? 'ok' : 'bad',
+                })),
+                semCursos: enr.length === 0,
+                statusLabel: label,
+                statusTone: label === 'Ativo' ? 'ok' : label === 'Parcial' ? 'warn' : 'bad',
+                expira: enr.length === 0 ? '—' : enr.every((e) => !e.expira_em) ? 'Vitalício' : 'Por curso',
+                acoes: [
+                    { key: 'edit', label: 'Editar', title: 'Editar acesso, expiração e bloqueio', Icon: Pencil, cor: 'text-primary', onClick: () => openDemoAccess(st) },
+                    { key: 'toggle', label: todosBloqueados ? 'Liberar' : 'Bloquear', title: todosBloqueados ? 'Desbloquear aluno' : 'Bloquear aluno (todos os cursos)', Icon: todosBloqueados ? ShieldCheck : ShieldOff, cor: todosBloqueados ? 'text-green-500' : 'text-red-500', onClick: () => toggleDemoBlock(st) },
+                    { key: 'login', label: 'Entrar', title: 'Entrar como este aluno (teste)', Icon: LogIn, cor: 'text-green-500', onClick: () => impersonateDemo(st) },
+                ],
+            };
+        }),
+    ];
+    const semLinhas = loading && students.length === 0;
+
     return (
         <div className="space-y-6" data-demo-tick={demoTick}>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -340,155 +398,7 @@ export default function Students() {
                 />
             </div>
 
-            <Card>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                        <thead className="text-xs text-text-muted uppercase bg-black/20">
-                            <tr>
-                                <th className="px-6 py-3">Nome / E-mail</th>
-                                <th className="px-6 py-3">Status</th>
-                                <th className="px-6 py-3">Expiração</th>
-                                <th className="px-6 py-3 text-right">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {loading && students.length === 0 ? (
-                                <tr><td colSpan="4" className="text-center py-8">Carregando...</td></tr>
-                            ) : (filteredStudents || []).length === 0 && filteredDemoStudents.length === 0 ? (
-                                <tr><td colSpan="4" className="text-center py-8 text-text-muted">Nenhum aluno encontrado.</td></tr>
-                            ) : (
-                                (filteredStudents || []).map((student) => {
-                                    if (!student) return null;
-                                    const activeInscr = student.inscricoes?.[0];
-                                    const isExpired = activeInscr?.data_expiracao && new Date(activeInscr.data_expiracao) < new Date();
-                                    const status = activeInscr?.status === 'bloqueado' || isExpired ? 'Bloqueado' : 'Ativo';
-
-                                    return (
-                                        <tr key={student.id} className="border-b border-border hover:bg-white/5 transition-colors">
-                                            <td className="px-6 py-4 font-medium text-text">
-                                                <div className="flex flex-col">
-                                                    <span>{student.nome_completo || 'Sem Nome'}</span>
-                                                    <span className="text-[10px] text-text-muted">{student.email}</span>
-                                                    {student.inscricoes?.length > 0 && (
-                                                        <div className="flex flex-wrap gap-1 mt-1">
-                                                            {student.inscricoes.map(ins => {
-                                                                // Calculate progress for this specific course
-                                                                const courseId = ins.curso_id;
-                                                                const totalAulas = lessonStats[courseId] || 0;
-
-                                                                // Count completed lessons for THIS user in THIS course
-                                                                const completedInCourse = student.progresso?.filter(p =>
-                                                                    p.concluida && aulaIdToCursoId[p.aula_id] === courseId
-                                                                ).length || 0;
-
-                                                                const percent = totalAulas > 0 ? Math.round((completedInCourse / totalAulas) * 100) : 0;
-
-                                                                return (
-                                                                    <span key={ins.id} className="text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded border border-primary/20 flex items-center gap-1">
-                                                                        {ins.cursos?.titulo}
-                                                                        <span className="font-bold opacity-70">({percent}%)</span>
-                                                                    </span>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className={cn(
-                                                    "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border",
-                                                    status === 'Ativo' ? "bg-green-900/30 text-green-400 border-green-900" : "bg-red-900/30 text-red-400 border-red-900"
-                                                )}>
-                                                    {status}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 text-text-muted">
-                                                {activeInscr?.data_expiracao ? new Date(activeInscr.data_expiracao).toLocaleDateString() : 'Vitalício'}
-                                            </td>
-                                            <td className="px-6 py-4 text-right flex justify-end gap-2">
-                                                <Button variant="ghost" size="icon" onClick={() => openModal(student)}>
-                                                    <Pencil className="h-4 w-4 text-primary" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => toggleStatus(student)}
-                                                    title={status === 'Ativo' ? 'Bloquear aluno' : 'Desbloquear aluno'}
-                                                >
-                                                    {status === 'Ativo'
-                                                        ? <ShieldOff className="h-4 w-4 text-red-500" />
-                                                        : <ShieldCheck className="h-4 w-4 text-green-500" />
-                                                    }
-                                                </Button>
-                                                <Button variant="ghost" size="icon" onClick={() => handleDelete(student)}>
-                                                    <Trash2 className="h-4 w-4 text-red-500" />
-                                                </Button>
-                                            </td>
-                                        </tr>
-                                    );
-                                })
-                            )}
-                            {filteredDemoStudents.map((st) => (
-                                <tr key={st.id} className="border-b border-border hover:bg-white/5 transition-colors">
-                                    <td className="px-6 py-4 font-medium text-text">
-                                        <div className="flex flex-col">
-                                            <span className="flex items-center gap-2">
-                                                {st.nome_completo}
-                                                <span className="rounded bg-primary text-black px-1.5 py-0.5 text-[9px] font-black tracking-widest">DEMO</span>
-                                            </span>
-                                            <span className="text-[10px] text-text-muted">{st.email} · senha: {DEMO_PASSWORD}</span>
-                                            <div className="flex flex-wrap gap-1 mt-1">
-                                                {st.cursos_info.length === 0 && <span className="text-[9px] text-text-muted italic">Sem acesso a nenhum curso</span>}
-                                                {st.cursos_info.map(ci => (
-                                                    <span key={ci.curso_id} className={cn(
-                                                        "text-[9px] px-1.5 py-0.5 rounded border flex items-center gap-1",
-                                                        ci.status === 'ativo' ? "bg-primary/10 text-primary border-primary/20" : "bg-red-500/10 text-red-400 border-red-500/30"
-                                                    )}>
-                                                        {ci.titulo}
-                                                        <span className="font-bold opacity-70">({ci.percent}%)</span>
-                                                        <span className="opacity-80">· {ci.status === 'bloqueado' ? 'Bloqueado' : ci.status === 'expirado' ? accessLabel(ci.expira_em) : accessLabel(ci.expira_em)}</span>
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        {(() => {
-                                            const enr = st.cursos_info;
-                                            const active = enr.filter(e => e.status === 'ativo').length;
-                                            const label = enr.length === 0 ? 'Sem cursos' : active === enr.length ? 'Ativo' : active === 0 ? 'Bloqueado' : 'Parcial';
-                                            return (
-                                                <span className={cn(
-                                                    "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border",
-                                                    label === 'Ativo' ? "bg-green-900/30 text-green-400 border-green-900" : label === 'Parcial' ? "bg-yellow-900/30 text-yellow-400 border-yellow-900" : "bg-red-900/30 text-red-400 border-red-900"
-                                                )}>{label}</span>
-                                            );
-                                        })()}
-                                    </td>
-                                    <td className="px-6 py-4 text-text-muted text-xs">
-                                        {st.cursos_info.length === 0 ? '—' : st.cursos_info.every(e => !e.expira_em) ? 'Vitalício' : 'Por curso'}
-                                    </td>
-                                    <td className="px-6 py-4 text-right flex justify-end gap-2">
-                                        <Button variant="ghost" size="icon" title="Editar acesso, expiração e bloqueio" onClick={() => openDemoAccess(st)}>
-                                            <Pencil className="h-4 w-4 text-primary" />
-                                        </Button>
-                                        <Button variant="ghost" size="icon"
-                                            title={st.cursos_info.length > 0 && st.cursos_info.every(e => e.bloqueado) ? 'Desbloquear aluno' : 'Bloquear aluno (todos os cursos)'}
-                                            onClick={() => toggleDemoBlock(st)}>
-                                            {st.cursos_info.length > 0 && st.cursos_info.every(e => e.bloqueado)
-                                                ? <ShieldCheck className="h-4 w-4 text-green-500" />
-                                                : <ShieldOff className="h-4 w-4 text-red-500" />}
-                                        </Button>
-                                        <Button variant="ghost" size="icon" title="Entrar como este aluno (teste)" onClick={() => impersonateDemo(st)}>
-                                            <LogIn className="h-4 w-4 text-green-500" />
-                                        </Button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </Card>
+            <StudentsList rows={rows} carregando={semLinhas} />
 
             {/* Modal de Cadastro/Edição */}
             {credentials && (
