@@ -151,6 +151,9 @@ export default function Login() {
                             Ambiente Restrito & Criptografado <br />
                             © {new Date().getFullYear()} RF Music Academy
                         </p>
+                        <p className="mt-2 text-[10px] uppercase tracking-widest text-white/40">
+                            <Link to="/termos" className="hover:text-primary">Termos de Uso</Link> · <Link to="/privacidade" className="hover:text-primary">Privacidade</Link>
+                        </p>
                     </div>
                 </div>
             </motion.div>

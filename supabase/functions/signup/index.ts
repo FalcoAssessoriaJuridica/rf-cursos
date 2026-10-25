@@ -50,6 +50,7 @@ Deno.serve(async (req) => {
   const cpf = String(p.cpf ?? '').replace(/\D/g, '');
   const password = String(p.password ?? '');
   if (nome.length < 3 || nome.length > 120) return json({ error: 'Informe seu nome completo.' }, 400);
+  if (p.aceito !== true) return json({ error: 'É preciso aceitar os Termos de Uso e a Política de Privacidade.' }, 400);
   if (!cpfValido(cpf)) return json({ error: 'CPF inválido.' }, 400);
   if (!EMAIL.test(email) || email.length > 160) return json({ error: 'E-mail inválido.' }, 400);
   if (password.length < MIN_PASSWORD || password.length > 72) return json({ error: `A senha precisa ter de ${MIN_PASSWORD} a 72 caracteres.` }, 400);
@@ -76,7 +77,7 @@ Deno.serve(async (req) => {
     const existe = /already|registered|exists/i.test(error.message);
     return json({ error: existe ? 'Já existe um cadastro com este e-mail. Entre ou use "Esqueci minha senha".' : 'Não foi possível criar a conta agora.' }, existe ? 409 : 400);
   }
-  const { error: e1 } = await admin.from('perfis').insert({ id: data.user.id, nome_completo: nome, email, telefone, cpf });
+  const { error: e1 } = await admin.from('perfis').insert({ id: data.user.id, nome_completo: nome, email, telefone, cpf, termos_aceitos_em: new Date().toISOString(), termos_versao: String(p.termos_versao ?? '').slice(0, 20) || null });
   if (e1) {
     await admin.auth.admin.deleteUser(data.user.id);
     const cpfRepetido = e1.code === '23505';

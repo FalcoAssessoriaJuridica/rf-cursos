@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Lock, User, Phone, IdCard, ChevronRight } from 'lucide-react';
 import { maskCpf, cpfValido } from '../lib/cpf';
+import { VERSAO_TERMOS } from '../legal/dados';
 import { cadastrar } from '../lib/pagamentos';
 import { signIn, MIN_PASSWORD } from '../lib/auth';
 import ThemeToggle from '../components/ThemeToggle';
@@ -29,7 +30,7 @@ function Campo({ label, icon: Icon, children }) {
 
 export default function Cadastro() {
     const navigate = useNavigate();
-    const [f, setF] = useState({ nome: '', email: '', telefone: '', cpf: '', senha: '', repita: '', site: '' });
+    const [f, setF] = useState({ aceito: false, nome: '', email: '', telefone: '', cpf: '', senha: '', repita: '', site: '' });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
@@ -37,11 +38,12 @@ export default function Cadastro() {
     const submit = async (e) => {
         e.preventDefault();
         setError('');
+        if (!f.aceito) { setError('Para criar a conta, aceite os Termos de Uso e a Política de Privacidade.'); return; }
         if (!cpfValido(f.cpf)) { setError('CPF inválido. Confira os números.'); return; }
         if (f.senha !== f.repita) { setError('As duas senhas não são iguais.'); return; }
         setLoading(true);
         try {
-            await cadastrar({ nome_completo: f.nome, email: f.email, telefone: f.telefone, cpf: f.cpf, password: f.senha, site: f.site });
+            await cadastrar({ nome_completo: f.nome, email: f.email, telefone: f.telefone, cpf: f.cpf, password: f.senha, site: f.site, aceito: true, termos_versao: VERSAO_TERMOS });
             await signIn(f.email, f.senha);
             navigate('/student/planos');
         } catch (err) {
@@ -84,6 +86,14 @@ export default function Cadastro() {
                         <Campo label="Repita a senha" icon={Lock}>
                             <input className="input-field pl-12" type="password" autoComplete="new-password" required minLength={MIN_PASSWORD} value={f.repita} onChange={set('repita')} />
                         </Campo>
+
+                        <label className="flex items-start gap-3 text-xs leading-relaxed text-white/70">
+                            <input type="checkbox" required checked={f.aceito} onChange={(e) => setF((s) => ({ ...s, aceito: e.target.checked }))} className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-primary)]" />
+                            <span>
+                                Li e aceito os <Link to="/termos" target="_blank" rel="noopener" className="text-primary underline underline-offset-4">Termos de Uso</Link> e
+                                a <Link to="/privacidade" target="_blank" rel="noopener" className="text-primary underline underline-offset-4">Política de Privacidade</Link>.
+                            </span>
+                        </label>
 
                         {/* campo isca: invisível para pessoas; robôs costumam preencher */}
                         <input tabIndex={-1} autoComplete="off" aria-hidden="true" value={f.site} onChange={set('site')} className="absolute -left-[9999px] h-0 w-0 opacity-0" name="site" />

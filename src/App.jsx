@@ -12,6 +12,7 @@ import CourseContent from './pages/admin/CourseContent';
 import Acervo from './pages/admin/Acervo';
 import Precos from './pages/admin/Precos';
 import Cadastro from './pages/Cadastro';
+import Legal from './pages/Legal';
 import Planos from './pages/student/Planos';
 import PagamentoSucesso from './pages/student/PagamentoSucesso';
 import CourseList from './pages/student/CourseList';
@@ -77,6 +78,8 @@ function App() {
             <Route path="/login" element={<Login />} />
           </Route>
           <Route path="/cadastro" element={<Cadastro />} />
+          <Route path="/termos" element={<Legal />} />
+          <Route path="/privacidade" element={<Legal />} />
           <Route path="/recuperar-senha" element={<RecuperarSenha />} />
           <Route path="/redefinir-senha" element={<RedefinirSenha />} />
 
