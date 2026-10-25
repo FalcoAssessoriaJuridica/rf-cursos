@@ -20,10 +20,12 @@ const isoDate = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 const ts = (s?: number | null) => (s ? new Date(s * 1000).toISOString() : null);
 
 // Um teste grátis por cartão: se o cartão desta assinatura já foi usado em outro teste, a assinatura é CANCELADA sem cobrança
-// (o aluno aceitou "7 dias grátis", não uma cobrança imediata). Ele pode assinar de novo, agora sem teste grátis.
-// Qualquer falha aqui não impede de liberar/registrar o acesso.
-async function aplicarUmTestePorCartao(sub: Stripe.Subscription, perfilId: string): Promise<Stripe.Subscription> {
-  if (sub.status !== 'trialing' || !sub.trial_end) return sub;
+// (o aluno aceitou "7 dias grátis", não uma cobrança imediata) e NÃO libera acesso. Ele pode assinar de novo, sem teste.
+// A decisão de negar vem da comparação do cartão e vale para QUALQUER aviso desta assinatura, mesmo que outro aviso (o Stripe manda
+// vários quase juntos) já a tenha cancelado: o cancelamento é só uma tentativa. Falha na própria checagem não nega nada.
+async function aplicarUmTestePorCartao(sub: Stripe.Subscription, perfilId: string): Promise<{ sub: Stripe.Subscription; negado: boolean }> {
+  if (sub.metadata?.teste_negado) return { sub, negado: true };
+  if (sub.status !== 'trialing' || !sub.trial_end) return { sub, negado: false };
   try {
     const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
     let pmId = typeof sub.default_payment_method === 'string' ? sub.default_payment_method : sub.default_payment_method?.id;
@@ -31,20 +33,22 @@ async function aplicarUmTestePorCartao(sub: Stripe.Subscription, perfilId: strin
       const lista = await stripe.paymentMethods.list({ customer: customerId, type: 'card', limit: 1 });
       pmId = lista.data[0]?.id;
     }
-    if (!pmId) return sub;
+    if (!pmId) return { sub, negado: false };
     const fingerprint = (await stripe.paymentMethods.retrieve(pmId)).card?.fingerprint;
-    if (!fingerprint) return sub;
+    if (!fingerprint) return { sub, negado: false };
 
     const { data: uso } = await db.from('cartoes_teste').select('stripe_subscription_id').eq('fingerprint', fingerprint).maybeSingle();
-    if (!uso) { await db.from('cartoes_teste').insert({ fingerprint, perfil_id: perfilId, stripe_subscription_id: sub.id }); return sub; }
-    if (uso.stripe_subscription_id === sub.id) return sub;   // mesmo teste, evento repetido
+    if (!uso) { await db.from('cartoes_teste').insert({ fingerprint, perfil_id: perfilId, stripe_subscription_id: sub.id }); return { sub, negado: false }; }
+    if (uso.stripe_subscription_id === sub.id) return { sub, negado: false };   // este é o teste que usou o cartão
 
     console.warn('cartão já usou teste grátis; cancelando sem cobrança:', sub.id);
-    await stripe.subscriptions.update(sub.id, { metadata: { ...sub.metadata, teste_negado: '1' } });
-    return await stripe.subscriptions.cancel(sub.id);
+    try { await stripe.subscriptions.update(sub.id, { metadata: { ...sub.metadata, teste_negado: '1' } }); } catch { /* outro aviso pode ter cancelado antes */ }
+    let atual = sub;
+    try { atual = await stripe.subscriptions.cancel(sub.id); } catch { atual = await stripe.subscriptions.retrieve(sub.id); }
+    return { sub: atual, negado: true };
   } catch (e) {
     console.error('checagem de teste por cartão falhou:', (e as Error).message);
-    return sub;
+    return { sub, negado: false };
   }
 }
 
@@ -87,19 +91,21 @@ async function sincronizar(subOriginal: Stripe.Subscription) {
   if (app !== APP) return;   // assinatura de outro sistema da mesma conta
   if (!perfilId || !cursoId) { console.warn('assinatura rf-cursos sem perfil/curso, ignorada:', sub.id); return; }
 
-  sub = await aplicarUmTestePorCartao(sub, perfilId);
+  const checagem = await aplicarUmTestePorCartao(sub, perfilId);
+  sub = checagem.sub;
+  const negado = checagem.negado;
   // o fim do período está na assinatura (API antiga) ou no 1º item (API nova)
   const fim: number | null = (sub as any).current_period_end ?? (sub.items?.data?.[0] as any)?.current_period_end ?? null;
   const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer?.id;
   const { error } = await db.from('assinaturas').upsert({
     perfil_id: perfilId, curso_id: cursoId, prazo, stripe_customer_id: customerId, stripe_subscription_id: sub.id,
-    motivo: sub.metadata?.teste_negado ? 'teste_cartao_repetido' : null,
+    ...(negado ? { motivo: 'teste_cartao_repetido' } : {}),
     status: sub.status, trial_fim: ts(sub.trial_end), periodo_fim: ts(fim), cancela_no_fim: !!sub.cancel_at_period_end,
     atualizado_em: new Date().toISOString(),
   }, { onConflict: 'stripe_subscription_id' });
   if (error) throw new Error(error.message);
 
-  if (!fim) return;
+  if (!fim || negado) return;   // assinatura negada: não libera nem mexe na matrícula
   const { data: matricula } = await db.from('inscricoes').select('id, status, data_expiracao').eq('perfil_id', perfilId).eq('curso_id', cursoId).limit(1).maybeSingle();
   if (matricula?.status === 'bloqueado') return;
 
