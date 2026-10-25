@@ -26,7 +26,9 @@ export async function loadCourse(courseId, userId) {
         .select('*')
         .eq('curso_id', courseId)
         .eq('perfil_id', userId)
-        .single();
+        .order('data_expiracao', { ascending: false, nullsFirst: true })
+        .limit(1)
+        .maybeSingle();
 
     if (!adminPreview) {
         if (!inscription) return { blocked: true, reason: 'sem_acesso' };

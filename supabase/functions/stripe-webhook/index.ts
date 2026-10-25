@@ -70,8 +70,8 @@ async function conceder(s: Stripe.Checkout.Session) {
     const hoje = new Date(isoDate(Date.now()) + 'T00:00:00Z');
     const atual = m?.data_expiracao ? new Date(m.data_expiracao + 'T00:00:00Z') : null;
     const ate = isoDate(somarPeriodo(atual && atual > hoje ? atual : hoje, prazo).getTime());
-    if (m) await db.from('inscricoes').update({ status: 'ativo', data_expiracao: ate }).eq('id', m.id);
-    else await db.from('inscricoes').insert({ perfil_id: perfilId, curso_id: cursoId, status: 'ativo', data_expiracao: ate });
+    const { error: eM } = await db.from('inscricoes').upsert({ perfil_id: perfilId, curso_id: cursoId, status: 'ativo', data_expiracao: ate }, { onConflict: 'perfil_id,curso_id' });
+    if (eM) throw new Error(eM.message);
     await db.from('pagamentos_avulsos').update({ acesso_ate: ate }).eq('stripe_session_id', s.id);
   } catch (e) {
     await db.from('pagamentos_avulsos').delete().eq('stripe_session_id', s.id);
@@ -102,8 +102,8 @@ async function sincronizar(subOriginal: Stripe.Subscription) {
 
   if (ABERTAS.includes(sub.status)) {
     const expira = isoDate(fim * 1000 + TOLERANCIA_DIAS * 86400_000);
-    if (matricula) await db.from('inscricoes').update({ status: 'ativo', data_expiracao: expira }).eq('id', matricula.id);
-    else await db.from('inscricoes').insert({ perfil_id: perfilId, curso_id: cursoId, status: 'ativo', data_expiracao: expira });
+    const { error: eM } = await db.from('inscricoes').upsert({ perfil_id: perfilId, curso_id: cursoId, status: 'ativo', data_expiracao: expira }, { onConflict: 'perfil_id,curso_id' });
+    if (eM) throw new Error(eM.message);
   } else if (ENCERRADAS.includes(sub.status) && matricula) {
     // cancelada: o acesso vai até onde foi pago (sem tolerância)
     await db.from('inscricoes').update({ data_expiracao: isoDate(fim * 1000) }).eq('id', matricula.id);
