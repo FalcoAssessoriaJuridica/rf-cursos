@@ -1,7 +1,7 @@
 // Edge Function `signup` (Deno): cadastro público de aluno. O "sign up" nativo do Supabase fica DESLIGADO; só esta função cria contas.
 // Deploy: verify_jwt = DESLIGADO (é pública). Segredos: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (injetados) e ALLOWED_ORIGIN.
 // Defesas: CORS só do app, campo isca (honeypot), limite de cadastros por IP/hora e no total/hora, senha mínima.
-// CPF obrigatório (validado pelos dígitos; um por conta). A conta nasce SEM nenhum curso: o acesso só chega com o pagamento confirmado (webhook do Stripe).
+// CAPTCHA (Turnstile) opcional por configuração. CPF obrigatório (validado pelos dígitos; um por conta). A conta nasce SEM nenhum curso: o acesso só chega com o pagamento confirmado (webhook do Stripe).
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const allowed = (Deno.env.get('ALLOWED_ORIGIN') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -43,6 +43,23 @@ Deno.serve(async (req) => {
   try { p = await req.json(); } catch { return json({ error: 'requisição inválida' }, 400); }
 
   if (p.site) return json({ ok: true });   // honeypot preenchido: robô; responde "ok" sem criar nada
+
+  // CAPTCHA (Cloudflare Turnstile): com TURNSTILE_SECRET_KEY configurado, o token é obrigatório e conferido no Cloudflare
+  const turnstileSecret = Deno.env.get('TURNSTILE_SECRET_KEY');
+  if (turnstileSecret) {
+    const token = String(p.captcha_token ?? '');
+    if (!token) return json({ error: 'Confirme a verificação de segurança e tente de novo.' }, 400);
+    try {
+      const r = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+        method: 'POST',
+        body: new URLSearchParams({ secret: turnstileSecret, response: token, remoteip: (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() }),
+      });
+      const v = await r.json();
+      if (!v.success) return json({ error: 'Não foi possível confirmar a verificação de segurança. Tente de novo.' }, 400);
+    } catch {
+      return json({ error: 'Não foi possível confirmar a verificação de segurança agora. Tente de novo.' }, 503);
+    }
+  }
 
   const nome = String(p.nome_completo ?? '').trim().replace(/\s+/g, ' ');
   const email = String(p.email ?? '').trim().toLowerCase();

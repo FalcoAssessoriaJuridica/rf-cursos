@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Lock, User, Phone, IdCard, ChevronRight } from 'lucide-react';
@@ -7,6 +7,7 @@ import { VERSAO_TERMOS } from '../legal/dados';
 import { cadastrar } from '../lib/pagamentos';
 import { signIn, MIN_PASSWORD } from '../lib/auth';
 import ThemeToggle from '../components/ThemeToggle';
+import Captcha from '../components/Captcha';
 
 const maskPhone = (v = '') => {
     const d = v.replace(/\D/g, '').slice(0, 11);
@@ -33,6 +34,7 @@ export default function Cadastro() {
     const [f, setF] = useState({ aceito: false, nome: '', email: '', telefone: '', cpf: '', senha: '', repita: '', site: '' });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const captcha = useRef(null);
     const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
 
     const submit = async (e) => {
@@ -43,8 +45,10 @@ export default function Cadastro() {
         if (f.senha !== f.repita) { setError('As duas senhas não são iguais.'); return; }
         setLoading(true);
         try {
-            await cadastrar({ nome_completo: f.nome, email: f.email, telefone: f.telefone, cpf: f.cpf, password: f.senha, site: f.site, aceito: true, termos_versao: VERSAO_TERMOS });
-            await signIn(f.email, f.senha);
+            const tokenCadastro = await captcha.current?.fresh();
+            await cadastrar({ nome_completo: f.nome, email: f.email, telefone: f.telefone, cpf: f.cpf, password: f.senha, site: f.site, aceito: true, termos_versao: VERSAO_TERMOS, captcha_token: tokenCadastro });
+            const tokenLogin = await captcha.current?.fresh();   // o token do cadastro já foi usado
+            await signIn(f.email, f.senha, tokenLogin);
             navigate('/student/planos');
         } catch (err) {
             setError(err.message || 'Não foi possível criar a conta.');
@@ -94,6 +98,8 @@ export default function Cadastro() {
                                 a <Link to="/privacidade" target="_blank" rel="noopener" className="text-primary underline underline-offset-4">Política de Privacidade</Link>.
                             </span>
                         </label>
+
+                        <Captcha ref={captcha} />
 
                         {/* campo isca: invisível para pessoas; robôs costumam preencher */}
                         <input tabIndex={-1} autoComplete="off" aria-hidden="true" value={f.site} onChange={set('site')} className="absolute -left-[9999px] h-0 w-0 opacity-0" name="site" />

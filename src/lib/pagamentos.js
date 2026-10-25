@@ -24,8 +24,8 @@ export async function pagamentos(action, payload = {}) {
 }
 
 // Cadastro público: função `signup` (o sign up nativo do Supabase fica desligado)
-export async function cadastrar({ nome_completo, email, telefone, cpf, password, site, aceito, termos_versao }) {
-    const { data, error } = await supabase.functions.invoke('signup', { body: { nome_completo, email, telefone, cpf, password, site, aceito, termos_versao } });
+export async function cadastrar({ nome_completo, email, telefone, cpf, password, site, aceito, termos_versao, captcha_token }) {
+    const { data, error } = await supabase.functions.invoke('signup', { body: { nome_completo, email, telefone, cpf, password, site, aceito, termos_versao, captcha_token } });
     if (error) throw new Error(await erroDaFuncao(error));
     if (data?.error) throw new Error(data.error);
     return data;

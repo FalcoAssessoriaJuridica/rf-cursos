@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { DEMO_ENABLED } from './demoCourses';
 import { clearOfflineScores } from './offlineScores';
+import { mfaPending, verifiedFactors, verifyTotp } from './mfa';
 
 // Autenticação pelo Supabase Auth. A SESSÃO (JWT) é a fonte da verdade e quem protege os dados é o banco (RLS).
 // As chaves rf_* do localStorage só espelham a sessão para a interface (rota, nome no menu); adulterá-las pelo
@@ -20,6 +21,12 @@ export const roleOf = (user) => (user?.app_metadata?.role === 'admin' ? 'admin' 
 // espelha o usuário verificado na interface. O admin não é "aluno": fica sem rf_user_id (pré-visualiza a área do aluno).
 async function mirrorUser(user) {
     const role = roleOf(user);
+    if (role === 'admin') {
+        // administrador com verificação em duas etapas ainda não cumprida nesta sessão: não entra no painel até digitar o código
+        let pendente = false;
+        try { pendente = await mfaPending(); } catch { /* sem resposta: segue como antes; o banco recusa o que não for permitido */ }
+        if (pendente) { clearLocalSession(); return 'mfa'; }
+    }
     set('rf_role', role);
     set('rf_user_email', user.email || '');
     let nome = user.user_metadata?.nome_completo || '';
@@ -64,17 +71,36 @@ const friendly = (error) => {
     const code = error?.code || '';
     const msg = String(error?.message || '');
     if (code === 'invalid_credentials' || /invalid login/i.test(msg)) return 'Acesso negado. Verifique suas credenciais.';
+    if (code === 'captcha_failed' || /captcha/i.test(msg)) return 'A verificação de segurança falhou. Tente de novo.';
     if (code === 'over_request_rate_limit' || /rate limit/i.test(msg)) return 'Muitas tentativas. Aguarde um minuto e tente de novo.';
     if (/network|fetch/i.test(msg)) return 'Sem conexão com o servidor. Verifique a internet e tente de novo.';
     return 'Não foi possível entrar. Tente de novo.';
 };
 
-export async function signIn(email, password) {
-    const { data, error } = await supabase.auth.signInWithPassword({ email: String(email).trim(), password });
+export async function signIn(email, password, captchaToken) {
+    const { data, error } = await supabase.auth.signInWithPassword({ email: String(email).trim(), password, options: captchaToken ? { captchaToken } : undefined });
     if (error || !data?.session) throw new Error(friendly(error));
     clearLocalSession(); // descarta qualquer sessão de demonstração anterior
     const role = await mirrorUser(data.session.user);
-    return { role, user: data.session.user };
+    return { role, mfaPending: role === 'mfa', user: data.session.user };
+}
+
+// há uma sessão que só falta o código do segundo fator? (ex.: recarregou a página no meio do login)
+export async function hasPendingMfa() {
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        return !!session && (await mfaPending());
+    } catch { return false; }
+}
+
+// conclui o login do administrador com o código do app autenticador
+export async function completeMfa(code) {
+    const factors = await verifiedFactors();
+    if (!factors.length) throw new Error('Nenhum aplicativo autenticador cadastrado para esta conta.');
+    await verifyTotp(factors[0].id, code);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) throw new Error('Sessão expirada. Entre de novo.');
+    return mirrorUser(session.user);
 }
 
 export async function signOut() {
@@ -85,8 +111,8 @@ export async function signOut() {
 }
 
 // "Esqueci minha senha": o e-mail traz um link para /redefinir-senha. A resposta é sempre a mesma (não revela se o e-mail existe).
-export async function requestPasswordReset(email) {
-    await supabase.auth.resetPasswordForEmail(String(email).trim(), { redirectTo: `${window.location.origin}/redefinir-senha` });
+export async function requestPasswordReset(email, captchaToken) {
+    await supabase.auth.resetPasswordForEmail(String(email).trim(), { redirectTo: `${window.location.origin}/redefinir-senha`, ...(captchaToken ? { captchaToken } : {}) });
 }
 
 export const MIN_PASSWORD = 8;

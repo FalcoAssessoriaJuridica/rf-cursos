@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { signIn } from '../lib/auth';
+import { signIn, signOut, hasPendingMfa, completeMfa } from '../lib/auth';
+import Captcha from '../components/Captcha';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
-import { Mail, Lock, ChevronRight } from 'lucide-react';
+import { Mail, Lock, ChevronRight, ShieldCheck } from 'lucide-react';
 import { findDemoStudentByLogin } from '../lib/demoCourses';
 import ThemeToggle from '../components/ThemeToggle';
 
@@ -16,10 +17,31 @@ export default function Login() {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isLoaded, setIsLoaded] = useState(false);
+    const [step, setStep] = useState('senha');   // 'senha' | 'codigo' (verificação em duas etapas do administrador)
+    const [code, setCode] = useState('');
+    const captcha = useRef(null);
 
     useEffect(() => {
         setIsLoaded(true);
+        // recarregou a página no meio do login: a senha já foi aceita e só falta o código
+        hasPendingMfa().then((pendente) => { if (pendente) setStep('codigo'); });
     }, []);
+
+    const handleCode = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+        try {
+            const role = await completeMfa(code);
+            navigate(role === 'admin' ? '/admin' : '/student');
+        } catch (err) {
+            setError(err.message || 'Não foi possível confirmar o código.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const cancelMfa = async () => { await signOut(); setCode(''); setError(''); setStep('senha'); };
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -39,7 +61,9 @@ export default function Login() {
             }
 
             // Supabase Auth: a senha é verificada no servidor e o papel (admin/aluno) vem do token, não do navegador
-            const { role } = await signIn(email, password);
+            const token = await captcha.current?.fresh();
+            const { role, mfaPending } = await signIn(email, password, token);
+            if (mfaPending) { setStep('codigo'); return; }
             navigate(role === 'admin' ? '/admin' : '/student');
         } catch (err) {
             setError(err.message || 'Ocorreu um erro ao tentar acessar.');
@@ -85,6 +109,21 @@ export default function Login() {
                         </h1>
                     </div>
 
+                    {step === 'codigo' ? (
+                        <form onSubmit={handleCode} className="space-y-5">
+                            <div className="flex items-center justify-center gap-2 text-primary"><ShieldCheck className="h-5 w-5" /><p className="text-sm font-bold uppercase tracking-widest">Verificação em duas etapas</p></div>
+                            <p className="text-center text-sm text-white/70">Abra o app autenticador no celular e digite o código de 6 dígitos de RF Music Academy.</p>
+                            <input
+                                inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]{6,7}" maxLength={7} required autoFocus
+                                aria-label="Código de 6 dígitos"
+                                className="input-field text-center text-2xl tracking-[0.5em]"
+                                value={code} onChange={(e) => setCode(e.target.value.replace(/[^\d ]/g, ''))}
+                            />
+                            {error && <p role="alert" className="rounded-lg border border-red-400/20 bg-red-400/10 py-2 text-center text-xs font-medium text-red-400">{error}</p>}
+                            <button type="submit" disabled={loading || code.replace(/\s/g, '').length < 6} className="btn-primary h-[54px] w-full disabled:opacity-60">{loading ? 'CONFIRMANDO...' : 'CONFIRMAR'}</button>
+                            <p className="text-center"><button type="button" onClick={cancelMfa} className="text-sm text-white/60 underline underline-offset-4 hover:text-primary">Cancelar e voltar</button></p>
+                        </form>
+                    ) : (
                     <form onSubmit={handleLogin} className="space-y-5">
                         <div className="space-y-2">
                             <label className="text-[10px] uppercase font-bold tracking-widest text-primary/70 ml-1">E-mail de Acesso</label>
@@ -116,6 +155,8 @@ export default function Login() {
                             </div>
                         </div>
 
+                        <Captcha ref={captcha} />
+
                         <AnimatePresence>
                             {error && (
                                 <motion.div
@@ -140,6 +181,7 @@ export default function Login() {
                             </span>
                         </button>
                     </form>
+                    )}
 
                     <p className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm">
                         <Link to="/recuperar-senha" className="text-white/60 underline underline-offset-4 hover:text-primary">Esqueci minha senha</Link>

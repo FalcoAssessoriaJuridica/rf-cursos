@@ -11,6 +11,7 @@ import Courses from './pages/admin/Courses';
 import CourseContent from './pages/admin/CourseContent';
 import Acervo from './pages/admin/Acervo';
 import Precos from './pages/admin/Precos';
+import Seguranca from './pages/admin/Seguranca';
 import Cadastro from './pages/Cadastro';
 import Legal from './pages/Legal';
 import UpdatePrompt from './components/UpdatePrompt';
@@ -92,6 +93,7 @@ function App() {
             <Route path="courses" element={<Courses />} />
             <Route path="partituras" element={<Acervo />} />
             <Route path="precos" element={<Precos />} />
+            <Route path="seguranca" element={<Seguranca />} />
             <Route path="courses/:courseId/content" element={<CourseContent />} />
           </Route>
 

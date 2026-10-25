@@ -1,19 +1,25 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Mail, ChevronLeft } from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
 import { requestPasswordReset } from '../lib/auth';
+import Captcha from '../components/Captcha';
 
 // "Esqueci minha senha": envia o link de redefinição. A mensagem é a mesma exista ou não o e-mail (não revela quem é aluno).
 export default function RecuperarSenha() {
     const [email, setEmail] = useState('');
     const [sent, setSent] = useState(false);
     const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
+    const captcha = useRef(null);
 
     const submit = async (e) => {
         e.preventDefault();
         setBusy(true);
-        try { await requestPasswordReset(email); } catch { /* resposta igual de propósito */ }
+        setError('');
+        let token = null;
+        try { token = await captcha.current?.fresh(); } catch (err) { setError(err.message); setBusy(false); return; }
+        try { await requestPasswordReset(email, token); } catch { /* resposta igual de propósito */ }
         setSent(true);
         setBusy(false);
     };
@@ -39,6 +45,8 @@ export default function RecuperarSenha() {
                                     <input id="rec-email" type="email" required autoComplete="email" placeholder="seu@email.com" className="input-field pl-12" value={email} onChange={(e) => setEmail(e.target.value)} />
                                 </div>
                             </div>
+                            <Captcha ref={captcha} />
+                            {error && <p role="alert" className="text-center text-xs font-semibold text-red-400">{error}</p>}
                             <button type="submit" disabled={busy} className="btn-primary w-full h-[54px] flex items-center justify-center">{busy ? 'ENVIANDO...' : 'ENVIAR LINK'}</button>
                             <p className="text-center"><Link to="/login" className="text-sm text-white/60 underline underline-offset-4 hover:text-primary">Voltar para o login</Link></p>
                         </form>
