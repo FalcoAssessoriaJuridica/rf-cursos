@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, Pause, Play, RotateCcw, SkipBack, Timer, Volume2, VolumeX } from 'lucide-react';
+import { Keyboard, Loader2, Pause, Play, RotateCcw, SkipBack, Timer, Volume2, VolumeX } from 'lucide-react';
 import { ScorePlayer } from './scoreEngine';
 import DrumOverlay from './DrumOverlay';
+import PracticePanel from './PracticePanel';
 import { cn } from '../lib/utils';
 
 // Partitura interativa: desenha, toca e acompanha com o cursor. Funciona com uma só pauta (clave de Sol) ou várias partes.
@@ -16,6 +17,8 @@ export default function ScoreViewer({ source, title, fromOmr = false, initialTim
     const [metro, setMetro] = useState(false);
     const [clean, setClean] = useState(fromOmr);
     const [timeSig, setTimeSig] = useState('');
+    const [practiceOpen, setPracticeOpen] = useState(false);
+    const [practicing, setPracticing] = useState(false);
 
     useEffect(() => {
         if (!holder.current || !source) return undefined;
@@ -29,6 +32,7 @@ export default function ScoreViewer({ source, title, fromOmr = false, initialTim
         setPlaying(false);
         setStep(0);
         setMuted([]);
+        setPracticing(false);
         p.load(source, { clean, timeSig: timeSig || null })
             .then((info) => alive && setState({ loading: false, ...info }))
             .catch((e) => alive && setState({ loading: false, error: e?.message || 'Não foi possível abrir esta partitura.' }));
@@ -39,9 +43,9 @@ export default function ScoreViewer({ source, title, fromOmr = false, initialTim
 
     const toggle = useCallback(async () => {
         const p = player.current;
-        if (!p || state.loading || state.error) return;
+        if (!p || state.loading || state.error || practicing) return;
         if (playing) { p.pause(); setPlaying(false); } else { await p.play(); setPlaying(true); }
-    }, [playing, state]);
+    }, [playing, state, practicing]);
 
     useEffect(() => {
         const onKey = (e) => {
@@ -66,7 +70,7 @@ export default function ScoreViewer({ source, title, fromOmr = false, initialTim
         <div className="score-viewer space-y-4">
             <div className="score-controls sticky top-0 z-30 rounded-2xl p-3 md:p-4 flex flex-wrap items-center gap-3 md:gap-5">
                 <div className="flex items-center gap-2">
-                    <button type="button" onClick={toggle} disabled={state.loading || !!state.error} aria-label={playing ? 'Pausar' : 'Tocar'} className="bevel bg-primary text-black h-11 px-5 rounded-lg font-bold flex items-center gap-2 disabled:opacity-50">
+                    <button type="button" onClick={toggle} disabled={state.loading || !!state.error || practicing} aria-label={playing ? 'Pausar' : 'Tocar'} className="bevel bg-primary text-black h-11 px-5 rounded-lg font-bold flex items-center gap-2 disabled:opacity-50">
                         {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
                         {playing ? 'Pausar' : 'Tocar'}
                     </button>
@@ -81,6 +85,12 @@ export default function ScoreViewer({ source, title, fromOmr = false, initialTim
                     <input type="range" min="0.4" max="1.6" step="0.05" value={speed} onChange={(e) => changeSpeed(parseFloat(e.target.value))} className="w-32 md:w-44 accent-[rgb(var(--c-primary))]" aria-label="Velocidade" />
                     <span className="w-10 text-right tabular-nums">{Math.round(speed * 100)}%</span>
                 </label>
+
+                {!state.hasDrums && state.steps > 0 && (
+                    <button type="button" onClick={() => setPracticeOpen((v) => !v)} aria-pressed={practiceOpen} className={cn('bevel h-11 px-4 rounded-lg border text-sm font-semibold flex items-center gap-2', practiceOpen ? 'border-primary text-primary' : 'border-white/30')}>
+                        <Keyboard className="h-4 w-4" /> Praticar com teclado
+                    </button>
+                )}
 
                 <button type="button" onClick={toggleMetro} aria-pressed={metro} className={cn('bevel h-11 px-4 rounded-lg border text-sm font-semibold flex items-center gap-2', metro ? 'border-primary text-primary' : 'border-white/30')}>
                     Metrônomo {metro ? 'ligado' : 'desligado'}
@@ -119,6 +129,10 @@ export default function ScoreViewer({ source, title, fromOmr = false, initialTim
                 )}
 
             </div>
+
+            {practiceOpen && !state.loading && !state.error && !state.hasDrums && (
+                <PracticePanel player={player.current} parts={state.parts} onActiveChange={setPracticing} />
+            )}
 
             {state.error && <p role="alert" className="liquid-glass rounded-2xl p-5 font-semibold">{state.error}</p>}
             {state.loading && !state.error && (

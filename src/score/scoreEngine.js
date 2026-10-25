@@ -143,7 +143,7 @@ export class ScorePlayer {
         const insts = osmd.Sheet.Instruments;
         this.parts = insts.map((inst, i) => {
             const clef = inst.Staves?.[0]?.StaffEntries ? null : null; // a clave exibida vem da pauta; o nome basta para a lista
-            return { index: i, name: inst.NameLabel?.text || inst.Name || `Parte ${i + 1}`, staves: inst.Staves?.length || 1, clef };
+            return { index: i, name: inst.NameLabel?.text || inst.Name || `Parte ${i + 1}`, staves: inst.Staves?.length || 1, staffIds: (inst.Staves || []).map((st) => st.idInMusicSheet), clef };
         });
         const tempo = osmd.Sheet.DefaultStartTempoInBpm;
         this.baseBpm = tempo && tempo > 20 ? tempo : 90;
@@ -177,7 +177,7 @@ export class ScorePlayer {
                             vel: grace ? 0.5 : ghost ? 0.28 : accent ? 1 : 0.8, grace, roll: !!n.TremoloInfo,
                         });
                     } else {
-                        notes.push({ midi: n.halfTone + 12, dur, part: part < 0 ? 0 : part });
+                        notes.push({ midi: n.halfTone + 12, dur, part: part < 0 ? 0 : part, staff: ve.ParentSourceStaffEntry?.ParentStaff?.idInMusicSheet ?? 0 });
                     }
                 }
             }
@@ -291,6 +291,20 @@ export class ScorePlayer {
         if (was) this.pause();
         this._moveCursorTo(Math.max(0, Math.min(i, this.events.length - 1)));
         if (was) this.play();
+    }
+
+    prepareAudio() { return this._ensureAudio(); }   // carrega o som (precisa de um clique do usuário)
+
+    // ir a um passo (usado pelo modo prática)
+    moveTo(i) { this._moveCursorTo(Math.max(0, Math.min(i, this.events.length - 1))); }
+
+    // som das teclas que o aluno toca (teclado MIDI ou da tela), sem passar pelo agendador: resposta imediata
+    async playLive(midi, vel = 0.8) {
+        await this._ensureAudio();
+        try { this.sampler?.triggerAttack(midiToName(midi), Tone.immediate(), Math.max(0.2, Math.min(1, vel))); } catch { /* fora da faixa do instrumento */ }
+    }
+    releaseLive(midi) {
+        try { this.sampler?.triggerRelease(midiToName(midi), Tone.immediate()); } catch { /* nota não estava soando */ }
     }
 
     setSpeed(x) { this.speed = x; Tone.Transport.bpm.rampTo(this.baseBpm * x, 0.05); }

@@ -23,13 +23,13 @@ O navegador envia o PDF **direto ao serviço** com esse bilhete. O serviço conf
    - `OMR_ALLOWED_ORIGIN` = `https://rfcursos.falcotech.com.br`
    - opcionais: `OMR_MAX_QUEUE` (3), `OMR_MAX_MB` (30), `OMR_TIMEOUT_S` (420)
    Reserve **pelo menos 2 GB de memória** (o Audiveris é em Java) e use um servidor x86.
-3. **Domínio com HTTPS** para o serviço (ex.: `omr.falcotech.com.br`): crie o registro DNS apontando para o VPS e associe o domínio no Easypanel (porta 8080).
-4. **Supabase → Edge Functions → Secrets**: `OMR_URL` (`https://omr.falcotech.com.br`) e `OMR_TICKET_SECRET` (igual ao do serviço); opcional `OMR_DAILY_LIMIT`.
+3. **Domínio com HTTPS** para o serviço (ex.: `rfcursos-omr.falcotech.com.br`): crie o registro DNS apontando para o VPS e associe o domínio no Easypanel (porta 8080).
+4. **Supabase → Edge Functions → Secrets**: `OMR_URL` (`https://rfcursos-omr.falcotech.com.br`) e `OMR_TICKET_SECRET` (igual ao do serviço); opcional `OMR_DAILY_LIMIT`.
 5. **SQL Editor**: rode `supabase/migrations/0016_omr_uso.sql`.
 6. **Publicar a função** `omr-convert` (Verify JWT ligado) e fazer o **deploy do site**.
 7. Teste: em Partituras, "Abrir do seu computador" com um PDF; o resultado deve abrir em cerca de um minuto.
 
-Verificações rápidas do serviço: `GET https://omr.falcotech.com.br/health` → `{"ok":true,"configured":true}`; um `POST /convert` sem bilhete deve dar 401.
+Verificações rápidas do serviço: `GET https://rfcursos-omr.falcotech.com.br/health` → `{"ok":true,"configured":true}`; um `POST /convert` sem bilhete deve dar 401.
 
 ## Limites conhecidos
 - O resultado precisa ser conferido: letras de hino podem ser lidas como dinâmicas/ornamentos e a fórmula de compasso às vezes
