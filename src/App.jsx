@@ -22,6 +22,7 @@ import Player from './pages/student/Player';
 import CourseDetail from './pages/student/CourseDetail';
 import Profile from './pages/student/Profile';
 import Partituras from './pages/student/Partituras';
+import ComunidadeAluno from './pages/student/Comunidade';
 import PartituraView from './pages/student/PartituraView';
 const Landing = React.lazy(() => import('./landing/Landing'));
 
@@ -104,6 +105,7 @@ function App() {
             <Route path="planos" element={<Planos />} />
             <Route path="pagamento/sucesso" element={<PagamentoSucesso />} />
             <Route path="partituras" element={<Partituras />} />
+            <Route path="comunidade" element={<ComunidadeAluno />} />
             <Route path="partituras/:scoreId" element={<PartituraView />} />
             <Route path="course/:courseId" element={<CourseDetail />} />
             <Route path="course/:courseId/lesson/:lessonId" element={<Player />} />

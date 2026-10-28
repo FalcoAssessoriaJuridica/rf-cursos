@@ -53,7 +53,7 @@ Limites de envio (valem nos dois casos): 3 minutos, 150 MB, só `video/mp4|quick
 
 1. **Banco e acesso** — FEITO e testado localmente: `supabase/migrations/0017_comunidade.sql` (tabelas, RLS, função `comunidade_entrar`, sem Edge Function) e `supabase/local-test/rls_comunidade.sql` (54 verificações). Falta rodar em produção. Todo membro vê todos os espaços; o envio vai para o espaço escolhido.
 2. **Painel do professor (FEITO, testado em ambiente local)** — `/admin/comunidade`: criar espaços, ver membros, publicar no mural (título, texto, link do Drive, PDF/partitura do acervo).
-3. **Área do membro**: entrar com código, ver espaços e mural, página do post com o player.
+3. **Área do membro (FEITO, testado em ambiente local)** — `/student/comunidade` e migração `0018_comunidade_drive_pdf.sql`: entrar com código, ver espaços e mural, página do post com o player.
 4. **Envio de vídeo e caixa de entrada**: upload com barra de progresso e validação, fila do professor, resposta por texto. Aqui entra o provedor escolhido (Bunny ou Drive com conta de serviço).
 5. **Avisos por e-mail** (Resend, já configurado): ao professor quando chega envio; ao aluno quando é respondido.
 6. **Expurgo e LGPD**: rotina diária que apaga envios vencidos (no banco e no provedor); texto de consentimento no primeiro envio (uso de imagem, vídeo privado, prazo de guarda); campo de autorização do responsável para menores de 18.

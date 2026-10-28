@@ -91,6 +91,7 @@ export default function MainLayout({ isAdmin = false }) {
         : [
             { href: '/student', label: 'Meus Cursos', icon: BookOpen },
             { href: '/student/partituras', label: 'Partituras', icon: Music2 },
+            ...(studentId && !isDemoSession() ? [{ href: '/student/comunidade', label: 'Comunidade', icon: HeartHandshake }] : []),
             ...(studentId && !isDemoSession() ? [{ href: '/student/planos', label: 'Planos', icon: CreditCard }] : []),
             ...(studentId ? [{ href: '/student/perfil', label: 'Meu perfil', icon: UserRound }] : []),
         ];

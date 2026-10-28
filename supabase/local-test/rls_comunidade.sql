@@ -106,6 +106,15 @@ select t.eq('M1 lê o mural', t.n('select 1 from public.comunidade_posts'), 1);
 select t.as_user(:X::uuid);
 select t.eq('X não lê o mural', t.n('select 1 from public.comunidade_posts'), 0);
 
+-- ===== PDF do mural pelo drive-proxy (migração 0018) =====
+select t.as_user(:ADM::uuid, true);
+select t.permitido('admin anexa PDF ao post', $$update public.comunidade_posts set pdf_ref='PDF_POST_abcdef123'$$);
+select t.as_user(:M1::uuid);
+select t.eq('membro pode abrir o PDF do mural', t.n($$select 1 where public.drive_file_allowed('PDF_POST_abcdef123')$$), 1);
+select t.eq('membro não abre arquivo desconhecido', t.n($$select 1 where public.drive_file_allowed('OUTRO_ARQUIVO_abcdef')$$), 0);
+select t.as_user(:X::uuid);
+select t.eq('quem não é membro não abre o PDF do mural', t.n($$select 1 where public.drive_file_allowed('PDF_POST_abcdef123')$$), 0);
+
 -- ===== Envios privados =====
 select t.as_user(:M1::uuid);
 select t.permitido('M1 envia vídeo', $$insert into public.comunidade_envios(espaco_id,aluno_id,video_provider,video_ref,duracao_s,tamanho_bytes,mensagem) select esp,auth.uid(),'drive','VID_M1_abcdef',90,50000000,'Segue meu solo' from ctx$$);
@@ -141,6 +150,7 @@ select t.as_user(:M1::uuid);
 select t.eq('M1 bloqueado não vê espaços', t.n('select 1 from public.comunidade_espacos'), 0);
 select t.eq('M1 bloqueado não vê mural', t.n('select 1 from public.comunidade_posts'), 0);
 select t.eq('M1 bloqueado não vê nem o próprio envio', t.n('select 1 from public.comunidade_envios'), 0);
+select t.eq('M1 bloqueado não abre o PDF do mural', t.n($$select 1 where public.drive_file_allowed('PDF_POST_abcdef123')$$), 0);
 select t.bloqueado('M1 bloqueado não reentra com o código', $$select * from public.comunidade_entrar((select cod from ctx))$$);
 
 -- ===== Visitante sem login =====
