@@ -276,7 +276,7 @@ export default function Player() {
                             )}
                         >
                             {fill && (
-                                <button type="button" onClick={() => setFill(false)} aria-label="Sair da tela cheia" className="absolute right-4 top-4 z-10 flex h-10 items-center gap-2 rounded-md bg-black/70 px-3 text-sm font-semibold text-white backdrop-blur hover:bg-black/90">
+                                <button type="button" onClick={() => setFill(false)} aria-label="Sair da tela cheia" className="absolute right-[max(1rem,env(safe-area-inset-right))] top-[max(1rem,calc(env(safe-area-inset-top)+0.5rem))] z-10 flex h-11 items-center gap-2 rounded-md bg-black/80 px-4 text-sm font-semibold text-white backdrop-blur hover:bg-black/90">
                                     <Minimize2 className="h-4 w-4" /> Sair (Esc)
                                 </button>
                             )}

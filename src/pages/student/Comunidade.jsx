@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { FileText, Loader2, LogIn, MessageSquareText } from 'lucide-react';
+import { FileText, Loader2, LogIn, MessageSquareText, Minimize2, Play } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { driveFetch, driveProxyUrl } from '../../lib/driveProxy';
 import { cn } from '../../lib/utils';
@@ -71,6 +71,50 @@ function BotaoPdf({ id, titulo }) {
     );
 }
 
+const toque = () => typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+
+// No celular o player do Drive não responde ao play quando está dentro da página rolável; ampliado sobre a janela ele funciona.
+// Por isso, em telas de toque o vídeo só roda na tela ampliada, com a saída sempre visível (abaixo da barra de status do iPhone).
+function VideoDrive({ id, titulo }) {
+    const [fill, setFill] = useState(false);
+    const celular = toque();
+
+    useEffect(() => {
+        if (!fill) return undefined;
+        const onKey = (e) => { if (e.key === 'Escape') setFill(false); };
+        document.addEventListener('keydown', onKey);
+        const prev = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
+    }, [fill]);
+
+    if (celular && !fill) {
+        return (
+            <button type="button" onClick={() => setFill(true)} aria-label={`Assistir ${titulo}`}
+                className="group relative flex aspect-video w-full items-center justify-center rounded-2xl bg-black active:scale-[0.99]">
+                <span className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-black shadow-lg"><Play className="ml-1 h-7 w-7 fill-current" /></span>
+                <span className="absolute bottom-3 left-4 text-sm font-semibold text-white/90">Toque para assistir</span>
+            </button>
+        );
+    }
+
+    return (
+        <div className={cn('overflow-hidden bg-black', fill ? 'fixed inset-0 z-[200] h-[100dvh] w-screen' : 'relative aspect-video rounded-2xl')}>
+            <iframe title={titulo} src={`https://drive.google.com/file/d/${id}/preview`} allow="autoplay; fullscreen" allowFullScreen className="h-full w-full border-0" />
+            {celular && (
+                <>
+                    {/* Coluna transparente na borda direita: o botão "abrir em outra janela" do Drive levaria o aluno para fora do app */}
+                    <div aria-hidden="true" className="absolute inset-y-0 right-0 w-14" />
+                    <button type="button" onClick={() => setFill(false)} aria-label="Voltar"
+                        className="absolute right-[max(1rem,env(safe-area-inset-right))] top-[max(1rem,calc(env(safe-area-inset-top)+0.5rem))] z-10 flex h-11 items-center gap-2 rounded-md bg-black/80 px-4 text-sm font-semibold text-white">
+                        <Minimize2 className="h-4 w-4" /> Voltar
+                    </button>
+                </>
+            )}
+        </div>
+    );
+}
+
 function Publicacao({ post }) {
     return (
         // Sem backdrop-filter: no celular ele quebra o toque dentro do iframe do Drive (o play não responde depois de pausar).
@@ -79,14 +123,7 @@ function Publicacao({ post }) {
                 <h3 className="text-xl font-bold leading-tight">{post.titulo}</h3>
                 <p className="mt-1 text-xs text-text-muted">{data(post.criado_em)}</p>
             </header>
-            {post.video_provider === 'drive' && post.video_ref && (
-                <div className="relative aspect-video overflow-hidden rounded-2xl bg-black">
-                    <iframe title={post.titulo} src={`https://drive.google.com/file/d/${post.video_ref}/preview`} allow="autoplay; fullscreen" allowFullScreen className="h-full w-full border-0" />
-                    {/* Só em telas de toque: no celular o botão "abrir em outra janela" do Drive leva o aluno para fora do app.
-                        Uma coluna transparente na borda direita, na altura toda, intercepta o toque; o play/pause no centro continua livre. */}
-                    <div aria-hidden="true" className="absolute inset-y-0 right-0 hidden w-14 [@media(pointer:coarse)]:block" />
-                </div>
-            )}
+            {post.video_provider === 'drive' && post.video_ref && <VideoDrive id={post.video_ref} titulo={post.titulo} />}
             {post.texto && <p className="max-w-[65ch] whitespace-pre-line text-sm leading-relaxed text-text-muted">{post.texto}</p>}
             {post.pdf_ref && <BotaoPdf id={post.pdf_ref} titulo={post.titulo} />}
         </article>
