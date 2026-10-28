@@ -1,4 +1,4 @@
--- Matriz de RLS da Comunidade MAC (migrações 0017 a 0020). Rodar depois de run.sh base + 0009, 0017, 0018, 0019 e 0020:  ./matriz.sh rls_comunidade.sql
+-- Matriz de RLS da Comunidade MAC (migrações 0017 a 0021). Rodar depois de run.sh base + 0009, 0017, 0018, 0019, 0020 e 0021:  ./matriz.sh rls_comunidade.sql
 drop schema if exists t cascade;
 create schema t;
 grant usage on schema t to anon, authenticated;
@@ -151,6 +151,7 @@ select t.eq('por padrão, M2 não vê vídeos compartilhados', t.n($$select 1 fr
 select t.eq('M2 não pode assistir ao vídeo privado do M1', t.n($$select 1 where public.comunidade_envio_pode_ver((select id from ev))$$), 0);
 select t.bloqueado('M2 não muda a visibilidade do envio do M1', $$select public.comunidade_envio_visibilidade((select id from ev), 'comunidade')$$);
 select t.as_user(:M1::uuid);
+select t.permitido('M1 aceita o termo da comunidade (maior de idade), requisito para compartilhar', $$select public.comunidade_aceitar_termo(true)$$);
 select t.bloqueado('valor de visibilidade inválido é recusado', $$select public.comunidade_envio_visibilidade((select id from ev), 'todos')$$);
 select t.permitido('M1 compartilha o próprio vídeo com a comunidade', $$select public.comunidade_envio_visibilidade((select id from ev), 'comunidade')$$);
 select t.as_user(:M2::uuid);
@@ -181,6 +182,59 @@ select t.eq('M1 lê a resposta ao próprio envio', t.n('select 1 from public.com
 select t.bloqueado('M1 não escreve resposta', $$insert into public.comunidade_respostas(envio_id,texto) select id,'eu mesmo' from public.comunidade_envios$$);
 select t.as_user(:M2::uuid);
 select t.eq('M2 não lê resposta do M1', t.n('select 1 from public.comunidade_respostas'), 0);
+
+-- ===== Consentimento e autorização do responsável (migração 0021) =====
+reset role;
+delete from public.comunidade_consentimentos where user_id = '20000000-0000-0000-0000-0000000000a1';
+select t.as_user(:M1::uuid);
+select t.eq('sem termo aceito, a situação é "sem_termo"', t.n($$select 1 where public.comunidade_termo_status()->>'status' = 'sem_termo'$$), 1);
+select t.as_user(:X::uuid);
+select t.bloqueado('quem não é membro não aceita o termo', $$select public.comunidade_aceitar_termo(true)$$);
+select t.as_user(:M1::uuid);
+select t.bloqueado('aceitar sem informar a idade é recusado', $$select public.comunidade_aceitar_termo(null)$$);
+select t.bloqueado('menor sem dados do responsável é recusado', $$select public.comunidade_aceitar_termo(false)$$);
+select t.bloqueado('menor com responsável incompleto é recusado', $$select public.comunidade_aceitar_termo(false, 'Ana Souza', '', '21 99999-0000')$$);
+select t.permitido('menor aceita informando o responsável', $$select public.comunidade_aceitar_termo(false, 'Ana Souza', 'mãe', '21 99999-0000', false)$$);
+select t.eq('o menor fica "aguardando_responsavel" (não se libera sozinho)', t.n($$select 1 where public.comunidade_termo_status()->>'status' = 'aguardando_responsavel'$$), 1);
+select t.bloqueado('o menor não confirma a própria autorização', $$select public.comunidade_confirmar_responsavel(auth.uid())$$);
+select t.bloqueado('o menor não grava o consentimento direto na tabela', $$update public.comunidade_consentimentos set confirmada_em = now()$$);
+select t.bloqueado('ninguém insere direto na tabela de consentimentos', $$insert into public.comunidade_consentimentos(user_id, versao, maior_de_idade) values (auth.uid(), 'x', true)$$);
+select t.as_user(:M2::uuid);
+select t.eq('M2 não lê o consentimento do M1', t.n('select 1 from public.comunidade_consentimentos'), 0);
+select t.bloqueado('M2 não confirma a autorização do M1', $$select public.comunidade_confirmar_responsavel('20000000-0000-0000-0000-0000000000a1')$$);
+select t.as_user(:ADM::uuid, true);
+select t.eq('o professor lê os consentimentos (inclusive os dados do responsável)', t.n('select 1 from public.comunidade_consentimentos where responsavel_nome is not null'), 1);
+select t.permitido('o professor confirma a autorização do responsável', $$select public.comunidade_confirmar_responsavel('20000000-0000-0000-0000-0000000000a1')$$);
+select t.as_user(:M1::uuid);
+select t.eq('depois da confirmação, o menor fica "ok"', t.n($$select 1 where public.comunidade_termo_status()->>'status' = 'ok'$$), 1);
+select t.eq('M1 lê o próprio consentimento', t.n('select 1 from public.comunidade_consentimentos'), 1);
+select t.eq('menor sem autorização expressa não pode compartilhar', t.n($$select 1 where (public.comunidade_termo_status()->>'pode_compartilhar')::boolean$$), 0);
+select t.bloqueado('menor não libera o vídeo para a comunidade sem autorização do responsável', $$select public.comunidade_envio_visibilidade((select id from ev), 'comunidade')$$);
+select t.permitido('menor ainda pode manter o vídeo só para o professor', $$select public.comunidade_envio_visibilidade((select id from ev), 'professor')$$);
+select t.permitido('menor aceita de novo, agora com autorização para compartilhar', $$select public.comunidade_aceitar_termo(false, 'Ana Souza', 'mãe', '21 99999-0000', true)$$);
+select t.eq('novo aceite de menor volta a aguardar o professor', t.n($$select 1 where public.comunidade_termo_status()->>'status' = 'aguardando_responsavel'$$), 1);
+select t.as_user(:ADM::uuid, true);
+select t.permitido('o professor confirma de novo', $$select public.comunidade_confirmar_responsavel('20000000-0000-0000-0000-0000000000a1')$$);
+select t.bloqueado('não há autorização pendente para quem já foi confirmado', $$select public.comunidade_confirmar_responsavel('20000000-0000-0000-0000-0000000000a1')$$);
+select t.as_user(:M1::uuid);
+select t.permitido('com a autorização expressa, o menor libera para a comunidade', $$select public.comunidade_envio_visibilidade((select id from ev), 'comunidade')$$);
+select t.permitido('M1 aceita como maior de idade', $$select public.comunidade_aceitar_termo(true)$$);
+select t.eq('maior de idade fica "ok" na hora', t.n($$select 1 where public.comunidade_termo_status()->>'status' = 'ok'$$), 1);
+select t.eq('os dados do responsável são apagados ao virar maior', t.n('select 1 from public.comunidade_consentimentos where responsavel_nome is null and responsavel_contato is null'), 1);
+select t.eq('maior de idade pode compartilhar', t.n($$select 1 where (public.comunidade_termo_status()->>'pode_compartilhar')::boolean$$), 1);
+reset role;
+update public.comunidades set termo_versao = '2026-11-v2' where slug = 'mac';
+select t.as_user(:M1::uuid);
+select t.eq('com um termo novo, a pessoa volta a precisar aceitar ("versao_antiga")', t.n($$select 1 where public.comunidade_termo_status()->>'status' = 'versao_antiga'$$), 1);
+reset role;
+update public.comunidades set termo_versao = '2026-10-v1' where slug = 'mac';
+select t.as_user(:M1::uuid);
+select t.permitido('M1 retira o consentimento', $$select public.comunidade_revogar_termo()$$);
+select t.eq('após retirar, a situação é "revogado"', t.n($$select 1 where public.comunidade_termo_status()->>'status' = 'revogado'$$), 1);
+select t.bloqueado('após retirar, não consegue compartilhar vídeo', $$select public.comunidade_envio_visibilidade((select id from ev), 'comunidade')$$);
+select t.as_anon();
+select t.bloqueado('anon não consulta a situação do termo', $$select public.comunidade_termo_status()$$);
+select t.bloqueado('anon não aceita o termo', $$select public.comunidade_aceitar_termo(true)$$);
 
 -- ===== Bloqueio de membro =====
 select t.as_user(:ADM::uuid, true);

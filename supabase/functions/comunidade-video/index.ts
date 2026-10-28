@@ -8,6 +8,7 @@
 // Segredos (digitados por você, nunca em chat/arquivo):
 //   Drive : GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN   (a pasta "Comunidade MAC - envios" é criada pela própria função)
 //   Bunny : BUNNY_LIBRARY_ID, BUNNY_API_KEY, BUNNY_TOKEN_KEY   (só se um dia escolher o Bunny)
+//   Limpeza diária: COMUNIDADE_MAC_CRON_SECRET (senha que o agendador envia no cabeçalho x-cron-secret)
 //   E-mail: RESEND_API_KEY (chave só desta função), COMUNIDADE_MAC_EMAIL_PROFESSOR (e-mail(s) do professor, separados por vírgula),
 //           opcionais: EMAIL_FROM, APP_URL. Sem RESEND_API_KEY os avisos simplesmente não são enviados.
 //   ALLOWED_ORIGIN (o mesmo das outras funções). SUPABASE_URL, SUPABASE_ANON_KEY e SUPABASE_SERVICE_ROLE_KEY o Supabase já injeta.
@@ -18,11 +19,15 @@
 //   confirmar  { envio_id, file_id? }                                    -> confere que o arquivo chegou e libera o envio ao professor
 //   reproduzir { envio_id }                                              -> como assistir (dono, professor, ou membro se o envio for da comunidade)
 //   avisar_resposta { envio_id }                                         -> (só o professor) e-mail ao aluno avisando que há resposta
+//   revogar_termo                                                        -> o aluno retira o consentimento: apaga TODOS os vídeos dele e grava a retirada
+//   avisar_termo_menor                                                   -> e-mail ao professor: um menor pediu autorização do responsável
+//   expurgar                                                             -> (só o professor) apaga os envios vencidos (90 dias, exceto os guardados)
+// POST com o cabeçalho x-cron-secret (= COMUNIDADE_MAC_CRON_SECRET), sem login -> só 'expurgar', para o agendador diário
 //   apagar     { envio_id }                                              -> apaga o arquivo e o envio (dono ou professor)
 // GET ?s=<token>                                                         -> vídeo do Drive (com Range), só com o token assinado
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { apagarVideo, assinaturaUpload, consultarVideo, criarVideo, urlDeReproducao, type BunnyCfg } from './bunny.ts';
-import { emailNovoEnvio, emailResposta, enviarEmail } from './email.ts';
+import { emailNovoEnvio, emailResposta, emailTermoMenor, enviarEmail } from './email.ts';
 import { apagarArquivo, baixarArquivo, consultarArquivo, iniciarUpload, pasta, procurarPorNome, type DriveCfg } from './drive.ts';
 
 const MAX_BYTES = 157286400;        // 150 MB (o mesmo limite da tabela)
@@ -66,6 +71,39 @@ const assinarStream = async (envioId: string, expira: number) => `${envioId}.${e
 
 type Envio = { id: string; aluno_id: string; video_provider: string; video_ref: string; upload_ok: boolean };
 
+const MENSAGEM_TERMO: Record<string, string> = {
+  sem_termo: 'Antes de enviar um vídeo, leia e aceite o termo da Comunidade.',
+  versao_antiga: 'O termo da Comunidade foi atualizado. Leia e aceite de novo para enviar vídeos.',
+  revogado: 'Você retirou o consentimento. Para enviar vídeos de novo, aceite o termo.',
+  aguardando_responsavel: 'Seu envio será liberado quando o professor confirmar a autorização do seu responsável.',
+};
+
+// Remove o arquivo onde ele estiver guardado (Drive ou Bunny).
+async function removerArquivoDe(e: Envio, bunny: BunnyCfg | null, drive: DriveCfg | null) {
+  if (e.video_provider === 'bunny') { if (!bunny) throw new Error('Bunny não configurado'); await apagarVideo(bunny, e.video_ref); return; }
+  if (!drive) throw new Error('Drive não configurado');
+  if (FILE_ID.test(e.video_ref)) { await apagarArquivo(drive, e.video_ref); return; }
+  for (const id of await procurarPorNome(drive, `mac-envio-${e.id}`)) await apagarArquivo(drive, id);   // upload que não chegou a ser confirmado
+}
+
+// Limpeza: apaga (arquivo e linha) os envios vencidos que o professor não marcou para guardar e os uploads que nunca terminaram (mais de 1 dia).
+// Um erro em um envio não impede os outros; o que falhar é tentado de novo na próxima rodada.
+// deno-lint-ignore no-explicit-any
+async function expurgar(admin: any) {
+  const bunny = bunnyCfg(), drive = driveCfg();
+  const campos = 'id, aluno_id, video_provider, video_ref, upload_ok';
+  const { data: vencidos } = await admin.from('comunidade_envios').select(campos).eq('guardar', false).lt('expira_em', new Date().toISOString()).limit(200);
+  const { data: orfaos } = await admin.from('comunidade_envios').select(campos).eq('upload_ok', false).lt('criado_em', new Date(Date.now() - 86400_000).toISOString()).limit(200);
+  const todos = new Map<string, Envio>();
+  for (const e of [...(vencidos ?? []), ...(orfaos ?? [])] as Envio[]) todos.set(e.id, e);
+  let apagados = 0, falhas = 0;
+  for (const e of todos.values()) {
+    try { await removerArquivoDe(e, bunny, drive); await admin.from('comunidade_envios').delete().eq('id', e.id); apagados++; }
+    catch (err) { falhas++; console.error('comunidade-video expurgo', e.id, (err as Error).message); }
+  }
+  return { vencidos: vencidos?.length ?? 0, orfaos: orfaos?.length ?? 0, apagados, falhas };
+}
+
 Deno.serve(async (req) => {
   const cors = corsFor(req.headers.get('Origin'));
   const json = (corpo: unknown, status = 200) => new Response(JSON.stringify(corpo), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
@@ -102,6 +140,14 @@ Deno.serve(async (req) => {
   }
   if (req.method !== 'POST') return erro('method not allowed', 405);
 
+  // ── POST do agendador diário: sem login, com a senha no cabeçalho; só faz a limpeza ──
+  const cron = req.headers.get('x-cron-secret');
+  if (cron !== null) {
+    const segredo = env('COMUNIDADE_MAC_CRON_SECRET');
+    if (!segredo || !iguais(cron, segredo)) return erro('forbidden', 403);
+    return json(await expurgar(admin));
+  }
+
   // ── POST: exige o login do usuário ──
   const asUser = createClient(env('SUPABASE_URL'), env('SUPABASE_ANON_KEY'), { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } });
   const { data: { user }, error: authErr } = await asUser.auth.getUser();
@@ -135,13 +181,7 @@ Deno.serve(async (req) => {
     const eProfessor = user.app_metadata?.role === 'admin';
     const appUrl = (env('APP_URL') || 'https://rfcursos.falcotech.com.br').replace(/\/$/, '');
     const nomeDe = async (uid: string) => ((await admin.from('perfis').select('nome_completo').eq('id', uid).maybeSingle()).data?.nome_completo as string | undefined)?.trim() || 'Um aluno';
-    // Remove o arquivo onde ele estiver guardado.
-    const removerArquivo = async (e: Envio) => {
-      if (e.video_provider === 'bunny') { if (!bunny) throw new Error('Bunny não configurado'); await apagarVideo(bunny, e.video_ref); return; }
-      if (!drive) throw new Error('Drive não configurado');
-      if (FILE_ID.test(e.video_ref)) { await apagarArquivo(drive, e.video_ref); return; }
-      for (const id of await procurarPorNome(drive, `mac-envio-${e.id}`)) await apagarArquivo(drive, id);   // upload que não chegou a ser confirmado
-    };
+    const removerArquivo = (e: Envio) => removerArquivoDe(e, bunny, drive);
 
     // E-mail ao professor quando um envio chega. De melhor esforço: nunca faz a ação falhar.
     const avisarProfessor = async (envioId: string) => {
@@ -176,6 +216,11 @@ Deno.serve(async (req) => {
 
       const { data: membro } = await asUser.rpc('comunidade_espaco_membro', { p_espaco: espacoId });
       if (membro !== true) return erro('Você não faz parte desta comunidade.', 403);
+
+      // Termo de consentimento (LGPD): sem aceite vigente, e sem a confirmação do responsável no caso de menores, não há envio.
+      const { data: termo } = await asUser.rpc('comunidade_termo_status');
+      if (termo?.status !== 'ok') return json({ error: MENSAGEM_TERMO[termo?.status] ?? 'Aceite o termo da Comunidade para enviar vídeos.', codigo: 'termo', status: termo?.status ?? 'sem_termo' }, 403);
+      if (visibilidade === 'comunidade' && termo.pode_compartilhar !== true) return erro('O responsável não autorizou o compartilhamento com a comunidade. O vídeo ficaria só para o professor.', 403);
 
       // Limpa envios interrompidos do próprio aluno (upload que não terminou) antes de contar.
       const velho = new Date(Date.now() - PENDENTE_VELHO_MS).toISOString();
@@ -242,6 +287,30 @@ Deno.serve(async (req) => {
       }
       if (!FILE_ID.test(envio.video_ref)) return erro('Este envio não terminou.', 409);
       return json({ tipo: 'video', token: await assinarStream(envio.id, expira), expira });
+    }
+
+    if (acao === 'revogar_termo') {
+      // Retirar o consentimento apaga TUDO que a pessoa enviou. Se algum arquivo não puder ser apagado, nada é revogado (dá para tentar de novo).
+      const { data: meus } = await admin.from('comunidade_envios').select('id, aluno_id, video_provider, video_ref, upload_ok').eq('aluno_id', user.id);
+      for (const e of (meus ?? []) as Envio[]) { await removerArquivo(e); await admin.from('comunidade_envios').delete().eq('id', e.id); }
+      const { error: rErr } = await asUser.rpc('comunidade_revogar_termo');
+      if (rErr) return erro('Não foi possível registrar a retirada. Tente de novo.', 500);
+      return json({ ok: true, apagados: meus?.length ?? 0 });
+    }
+
+    if (acao === 'avisar_termo_menor') {
+      const { data: termo } = await asUser.rpc('comunidade_termo_status');
+      if (termo?.status !== 'aguardando_responsavel') return json({ ok: true, enviado: false });
+      const { data: c } = await admin.from('comunidade_consentimentos').select('responsavel_nome, responsavel_parentesco, responsavel_contato').eq('user_id', user.id).maybeSingle();
+      const para = env('COMUNIDADE_MAC_EMAIL_PROFESSOR').split(',').map((x) => x.trim()).filter(Boolean);
+      if (!c || para.length === 0) return json({ ok: true, enviado: false });
+      const m = emailTermoMenor({ aluno: await nomeDe(user.id), responsavel: c.responsavel_nome, parentesco: c.responsavel_parentesco, contato: c.responsavel_contato, link: `${appUrl}/admin/comunidade` });
+      return json({ ok: true, enviado: await enviarEmail({ para, ...m }) });
+    }
+
+    if (acao === 'expurgar') {
+      if (!eProfessor) return erro('Só o professor executa a limpeza.', 403);
+      return json(await expurgar(admin));
     }
 
     if (acao === 'avisar_resposta') {

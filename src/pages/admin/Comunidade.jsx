@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Check, Copy, FileText, Loader2, Plus, RefreshCw, Send, Trash2, UserCheck, UserX, Video } from 'lucide-react';
+import { Check, Copy, FileText, Loader2, Plus, RefreshCw, Send, ShieldCheck, Trash2, UserCheck, UserX, Video } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { driveId } from '../../lib/media';
 import { cn } from '../../lib/utils';
 import EnvioPlayer from '../../components/EnvioPlayer';
-import { apagarEnvio, avisarResposta, duracaoLegivel, tamanhoLegivel } from '../../lib/comunidadeVideo';
+import { apagarEnvio, avisarResposta, duracaoLegivel, expurgarVencidos, tamanhoLegivel } from '../../lib/comunidadeVideo';
 
 const ABAS = [
     { id: 'mural', label: 'Mural' },
@@ -337,30 +337,53 @@ function Envios({ espacos, envios, respostas, perfis, userId, recarregar }) {
     );
 }
 
+function CelulaTermo({ m, busy, onConfirmar }) {
+    const t = m.termo;
+    if (!t) return <span className="text-xs text-text-muted">Ainda não aceitou o termo</span>;
+    if (t.revogado_em) return <span className="text-xs text-text-muted">Retirou o consentimento em {data(t.revogado_em)}</span>;
+    if (t.maior_de_idade) return <span className="text-xs text-text-muted">Maior de 18 anos · aceitou em {data(t.aceito_em)}</span>;
+    const dadosResp = `${t.responsavel_nome} (${t.responsavel_parentesco}) · ${t.responsavel_contato}`;
+    if (!t.confirmada_em) {
+        return (
+            <div className="space-y-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/50 px-2.5 py-0.5 text-xs font-semibold text-primary">Autorização pendente</span>
+                <p className="text-xs text-text-muted">Menor de 18 anos. Responsável: {dadosResp}{t.autoriza_compartilhar ? '. Autoriza compartilhar com a comunidade' : ''}.</p>
+                <button type="button" disabled={busy} onClick={onConfirmar} className="flex h-9 items-center gap-2 rounded-lg border border-primary/50 px-3 text-xs font-semibold text-primary hover:bg-primary/10 disabled:opacity-40">
+                    <ShieldCheck className="h-4 w-4" /> Confirmar autorização do responsável
+                </button>
+            </div>
+        );
+    }
+    return <span className="text-xs text-text-muted">Menor de 18 anos · responsável confirmado em {data(t.confirmada_em)}: {dadosResp}. {t.autoriza_compartilhar ? 'Pode compartilhar com a comunidade.' : 'Só para o professor.'}</span>;
+}
+
 function Membros({ membros, recarregar }) {
     const { busy, msg, rodar } = useAcao(recarregar);
     const chave = (m) => ({ comunidade_id: m.comunidade_id, user_id: m.user_id });
     const alterar = (m, status) => rodar(() => supabase.from('comunidade_membros').update({ status }).match(chave(m)), status === 'bloqueado' ? 'Membro bloqueado.' : 'Membro liberado.');
     const remover = (m) => confirm(`Remover ${m.nome} da comunidade? Para voltar, a pessoa precisará digitar o código de novo.`)
         && rodar(() => supabase.from('comunidade_membros').delete().match(chave(m)), 'Membro removido.');
+    const confirmar = (m) => confirm(`Confirme só depois de falar com ${m.termo?.responsavel_nome} (${m.termo?.responsavel_parentesco}) e ele(a) concordar que ${m.nome} envie vídeos. Confirmar a autorização?`)
+        && rodar(() => supabase.rpc('comunidade_confirmar_responsavel', { p_user: m.user_id }), 'Autorização confirmada. O envio de vídeos foi liberado.');
     return (
         <div className="space-y-4">
-            <p className="text-sm text-text-muted">{membros.length} membro(s). Quem entra pelo código aparece aqui. Bloquear impede o acesso e o novo ingresso com o código.</p>
+            <p className="text-sm text-text-muted">{membros.length} membro(s). Quem entra pelo código aparece aqui. Bloquear impede o acesso e o novo ingresso com o código. Menores de 18 anos só enviam vídeos depois que você confirma a autorização do responsável.</p>
             <Aviso msg={msg} />
             {membros.length === 0 ? (
                 <p className="text-sm text-text-muted">Ninguém entrou ainda. Envie o código da aba "Código de acesso" aos alunos da igreja.</p>
             ) : (
                 <div className="overflow-x-auto rounded-2xl border border-white/10">
-                    <table className="w-full min-w-[640px] text-left text-sm">
+                    <table className="w-full min-w-[860px] text-left text-sm">
                         <thead className="text-[11px] uppercase tracking-widest text-text-muted"><tr>
-                            <th className="px-4 py-3">Pessoa</th><th className="px-4 py-3">Entrou em</th><th className="px-4 py-3">Situação</th><th className="px-4 py-3 text-right">Ações</th>
+                            <th className="px-4 py-3">Pessoa</th><th className="px-4 py-3">Entrou em</th><th className="px-4 py-3">Situação</th><th className="px-4 py-3">Termo de envio de vídeos</th><th className="px-4 py-3 text-right">Ações</th>
                         </tr></thead>
                         <tbody>
                             {membros.map((m) => (
-                                <tr key={m.user_id} className="border-t border-white/5">
+                                <tr key={m.user_id} className="border-t border-white/5 align-top">
                                     <td className="px-4 py-3"><span className="block font-semibold">{m.nome}</span><span className="block text-xs text-text-muted">{m.email}</span></td>
                                     <td className="px-4 py-3 tabular-nums">{data(m.entrou_em)}</td>
                                     <td className="px-4 py-3">{m.status === 'ativo' ? 'Ativo' : <span className="font-semibold text-red-500">Bloqueado</span>}</td>
+                                    <td className="max-w-sm px-4 py-3"><CelulaTermo m={m} busy={busy} onConfirmar={() => confirmar(m)} /></td>
                                     <td className="px-4 py-3">
                                         <div className="flex justify-end gap-2">
                                             {m.status === 'ativo' ? (
@@ -447,22 +470,27 @@ export default function Comunidade() {
         if (po.error || en.error) { setErro((po.error || en.error).message); return; }
         const idsPessoas = [...new Set([...mem.data.map((m) => m.user_id), ...(en.data ?? []).map((e) => e.aluno_id)])];
         const idsEnvios = (en.data ?? []).map((e) => e.id);
-        const [pe, re] = await Promise.all([
+        const [pe, re, te] = await Promise.all([
             idsPessoas.length ? supabase.from('perfis').select('id, nome_completo, email').in('id', idsPessoas) : { data: [] },
             idsEnvios.length ? supabase.from('comunidade_respostas').select('id, envio_id, texto, criado_em').in('envio_id', idsEnvios).order('criado_em') : { data: [] },
+            supabase.from('comunidade_consentimentos').select('user_id, versao, maior_de_idade, responsavel_nome, responsavel_parentesco, responsavel_contato, autoriza_compartilhar, confirmada_em, aceito_em, revogado_em'),
         ]);
-        if (pe.error || re.error) { setErro((pe.error || re.error).message); return; }
+        if (pe.error || re.error || te.error) { setErro((pe.error || re.error || te.error).message); return; }
+        const termoDe = Object.fromEntries((te.data ?? []).map((t) => [t.user_id, t]));
         const perfil = Object.fromEntries((pe.data ?? []).map((p) => [p.id, { nome: p.nome_completo || 'Sem nome', email: p.email || '' }]));
         const porEnvio = {};
         for (const r of re.data ?? []) (porEnvio[r.envio_id] ??= []).push(r);
         setComunidade(com); setEspacos(esp.data); setCodigo(cod.data); setPosts(po.data ?? []); setEnvios(en.data ?? []); setRespostas(porEnvio); setPerfis(perfil);
-        setMembros(mem.data.map((m) => ({ ...m, nome: perfil[m.user_id]?.nome ?? 'Sem nome', email: perfil[m.user_id]?.email ?? '' })));
+        setMembros(mem.data.map((m) => ({ ...m, nome: perfil[m.user_id]?.nome ?? 'Sem nome', email: perfil[m.user_id]?.email ?? '', termo: termoDe[m.user_id] ?? null })));
         setUserId(sess.data?.session?.user?.id ?? null);
         setErro('');
     }, []);
 
     useEffect(() => { carregar().finally(() => setLoading(false)); }, [carregar]);
     const novos = envios.filter((e) => e.upload_ok && e.status === 'novo').length;
+    const pendentes = membros.filter((m) => m.termo && !m.termo.revogado_em && !m.termo.maior_de_idade && !m.termo.confirmada_em).length;
+    // Limpeza dos envios vencidos (90 dias): também roda sozinha todo dia; abrir o painel é um reforço, sem alarde.
+    useEffect(() => { expurgarVencidos().then((r) => { if (r?.apagados > 0) carregar(); }).catch(() => {}); }, [carregar]);
 
     return (
         <div className="mx-auto max-w-5xl space-y-8 pb-10">
@@ -483,7 +511,7 @@ export default function Comunidade() {
                             <button key={a.id} role="tab" type="button" aria-selected={aba === a.id} onClick={() => setAba(a.id)}
                                 className={cn('h-10 rounded-lg px-4 text-sm font-semibold transition-colors',
                                     aba === a.id ? 'bg-primary text-black' : 'text-text-muted hover:text-text')}>
-                                {a.label}{a.id === 'membros' ? ` (${membros.length})` : ''}{a.id === 'envios' && novos > 0 ? ` (${novos} novo${novos > 1 ? 's' : ''})` : ''}
+                                {a.label}{a.id === 'membros' ? ` (${membros.length})` : ''}{a.id === 'envios' && novos > 0 ? ` (${novos} novo${novos > 1 ? 's' : ''})` : ''}{a.id === 'membros' && pendentes > 0 ? ` · ${pendentes} autorização pendente${pendentes > 1 ? 's' : ''}` : ''}
                             </button>
                         ))}
                     </div>

@@ -8,7 +8,7 @@ Custo: **zero**. Usa o Google Cloud sem cobrança (a API do Drive é gratuita) e
 
 ## O que fazer uma vez (cerca de 15 minutos, só você pode fazer)
 
-1. **Banco (Supabase, SQL Editor):** rode `supabase/migrations/0019_comunidade_envios.sql` e, depois, `0020_comunidade_visibilidade.sql`.
+1. **Banco (Supabase, SQL Editor):** rode `supabase/migrations/0019_comunidade_envios.sql` `0020_comunidade_visibilidade.sql` e `0021_comunidade_consentimento.sql`, nessa ordem.
 2. **Google Cloud:** em https://console.cloud.google.com crie um projeto (ex.: "RF Cursos"). Não precisa ligar cobrança.
 3. **Ative a API:** *APIs e serviços > Biblioteca > Google Drive API > Ativar*.
 4. **Tela de consentimento OAuth:** *APIs e serviços > Tela de permissão OAuth*. Tipo de usuário **Externo**; nome do app e seu e-mail. Em
@@ -54,6 +54,41 @@ Segredos a criar no Supabase (Edge Functions > Secrets), você digita:
 - `COMUNIDADE_MAC_EMAIL_PROFESSOR`: o e-mail que recebe os avisos (vários, separados por vírgula).
 Opcionais: `EMAIL_FROM` (padrão `RF Music Academy <nao-responda@falcotech.com.br>`) e `APP_URL` (padrão `https://rfcursos.falcotech.com.br`).
 O limite gratuito do Resend (100 e-mails por dia) é da conta inteira, dividido com os outros projetos.
+
+## Consentimento, menores de 18 anos e retirada (fase 6)
+
+- **Antes do primeiro envio** a pessoa lê o termo (`src/legal/comunidade.js`), informa se tem 18 anos ou mais e marca que concorda. Sem isso, a função recusa o envio.
+- **Menor de 18 anos:** informa o responsável (nome, parentesco, telefone ou e-mail). O envio fica **em espera** até o professor confirmar a autorização, na aba
+  **Membros** (botão "Confirmar autorização do responsável", depois de falar com o responsável). O professor recebe um e-mail avisando do pedido. O menor só
+  pode liberar o vídeo para "Toda a comunidade" se o responsável autorizou isso de forma expressa; senão fica só para o professor.
+- **Retirar o consentimento:** o aluno tem o botão em "Meus envios". Apaga todos os vídeos dele (Drive e banco) e bloqueia novos envios até aceitar de novo.
+- **Termo novo:** quando mudar o texto de forma relevante, edite `src/legal/comunidade.js` e atualize a versão no banco para todos aceitarem de novo:
+  `update public.comunidades set termo_versao = '2026-11-v2' where slug = 'mac';`
+- **O texto é uma proposta.** Revise o texto com quem cuida do jurídico antes de depender dele, principalmente as seções 4 (Google fora do Brasil), 5 (prazo e "guardar") e 7 (menores).
+
+## Limpeza automática dos vídeos vencidos (fase 6)
+
+Cada envio vence 90 dias depois (o professor pode marcar "Guardar (não expira)" na caixa de entrada). A limpeza apaga o arquivo no Drive e a linha no banco, e
+também remove uploads abandonados há mais de 1 dia. Ela roda de dois jeitos:
+
+1. **Todo dia, sozinha**, por um agendador do próprio Supabase (passos abaixo). É o que garante o prazo prometido no termo.
+2. **Quando o professor abre o painel** da Comunidade (reforço, sem alarde).
+
+Para ligar o agendador diário (você faz uma vez):
+1. Supabase > Edge Functions > Secrets: crie `COMUNIDADE_MAC_CRON_SECRET` com uma senha longa e aleatória (ex.: 40 caracteres). Guarde a mesma senha para o passo 3.
+2. Supabase > Database > Extensions: ative `pg_cron` e `pg_net`.
+3. SQL Editor (troque `COLE_AQUI_A_SENHA` pela senha do passo 1 e rode):
+
+   ```sql
+   select cron.schedule(
+     'comunidade-mac-expurgo', '0 6 * * *',   -- todo dia às 06:00 UTC (03:00 em Brasília)
+     $$ select net.http_post(
+          url     := 'https://bghvzdfikfhceekoxtxg.supabase.co/functions/v1/comunidade-video',
+          headers := jsonb_build_object('Content-Type', 'application/json', 'x-cron-secret', 'COLE_AQUI_A_SENHA'),
+          body    := '{}'::jsonb) $$);
+   ```
+4. Para conferir depois: `select jobname, schedule, active from cron.job;` e, no dia seguinte, `select status, return_message, start_time from cron.job_run_details order by start_time desc limit 5;`.
+   Para desligar: `select cron.unschedule('comunidade-mac-expurgo');`
 
 ## Limites do plano gratuito (vale saber)
 

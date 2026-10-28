@@ -63,3 +63,18 @@ export function emailResposta(o: { texto: string; link: string }) {
       o.link, 'Ver no app'),
   };
 }
+
+export function emailTermoMenor(o: { aluno: string; responsavel: string; parentesco: string; contato: string; link: string }) {
+  const linhas = [
+    `${o.aluno} informou ter menos de 18 anos e pediu para enviar vídeos na Comunidade MAC.`,
+    `Responsável: ${o.responsavel} (${o.parentesco}). Contato: ${o.contato}.`,
+    'O envio só é liberado depois que você falar com o responsável e confirmar a autorização no painel (aba Membros).',
+  ];
+  return {
+    assunto: `Autorização de responsável pendente: ${o.aluno}`,
+    texto: [...linhas, `Abra o painel: ${o.link}`].join('\n'),
+    html: moldura(`Autorização pendente: ${o.aluno}`,
+      linhas.map((l, i) => `<p style="margin:0 0 ${i === 2 ? 0 : 8}px;line-height:1.5${i === 2 ? ';color:#55554f' : ''}">${esc(l)}</p>`).join(''),
+      o.link, 'Abrir a aba Membros'),
+  };
+}

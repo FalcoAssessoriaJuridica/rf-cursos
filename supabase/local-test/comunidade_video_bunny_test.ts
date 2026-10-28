@@ -64,6 +64,7 @@ try {
   const espaco = await sql('select id from public.comunidade_espacos limit 1');
   const entrar = (jwt: string) => fetch(`${API}/rest/v1/rpc/comunidade_entrar`, { method: 'POST', headers: { apikey: ANON, Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_codigo: codigo }) });
   await entrar(ana.jwt); await entrar(bruno.jwt);
+  for (const u of [ana, bruno]) await fetch(`${API}/rest/v1/rpc/comunidade_aceitar_termo`, { method: 'POST', headers: { apikey: ANON, Authorization: `Bearer ${u.jwt}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_maior: true }) });
 
   const valido = { action: 'criar', espaco_id: espaco, duracao_s: 90, tamanho_bytes: 50_000_000, tipo: 'video/mp4', mensagem: 'Segue meu solo' };
 

@@ -124,3 +124,28 @@ export const urlDoEnvio = async (envioId) => {
 export const apagarEnvio = (envioId) => chamar('apagar', { envio_id: envioId });
 // Professor: depois de gravar a resposta, avisa o aluno por e-mail. Devolve true se o e-mail saiu.
 export const avisarResposta = async (envioId) => (await chamar('avisar_resposta', { envio_id: envioId })).enviado === true;
+
+// ── Consentimento (LGPD) ──
+// Situação de quem está logado: { status: 'sem_termo' | 'versao_antiga' | 'revogado' | 'aguardando_responsavel' | 'ok', versao, maior_de_idade, pode_compartilhar, aceito_em }
+export async function statusTermo() {
+    const { data, error } = await supabase.rpc('comunidade_termo_status');
+    if (error) throw new Error('Não foi possível conferir o termo agora. Tente de novo.');
+    return data;
+}
+export async function aceitarTermo({ maior, responsavel, autorizaCompartilhar }) {
+    const { data, error } = await supabase.rpc('comunidade_aceitar_termo', {
+        p_maior: maior,
+        p_resp_nome: maior ? null : responsavel.nome,
+        p_resp_parentesco: maior ? null : responsavel.parentesco,
+        p_resp_contato: maior ? null : responsavel.contato,
+        p_autoriza_compartilhar: maior ? false : !!autorizaCompartilhar,
+    });
+    if (error) throw new Error(error.message || 'Não foi possível registrar o aceite.');
+    return data;
+}
+// Retirar o consentimento apaga todos os vídeos da pessoa.
+export const retirarConsentimento = () => chamar('revogar_termo');
+// Menor de idade: avisa o professor por e-mail que há uma autorização para confirmar (o pedido já está salvo, o e-mail é um extra).
+export const avisarTermoMenor = () => chamar('avisar_termo_menor').catch(() => null);
+// Professor: apaga os envios vencidos (também roda sozinho todo dia, por um agendador).
+export const expurgarVencidos = () => chamar('expurgar');

@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { CheckCircle2, Clock, FileText, Globe, Loader2, Lock, LogIn, MessageSquareText, Minimize2, Play, Trash2, Upload } from 'lucide-react';
+import { CheckCircle2, Clock, FileText, Globe, Loader2, Lock, LogIn, MessageSquareText, Minimize2, Play, ShieldCheck, Trash2, Upload } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { driveFetch, driveProxyUrl } from '../../lib/driveProxy';
 import { cn } from '../../lib/utils';
 import EnvioPlayer from '../../components/EnvioPlayer';
-import { ACCEPT, LIMITES, apagarEnvio, duracaoLegivel, enviarVideo, tamanhoLegivel, validarArquivo } from '../../lib/comunidadeVideo';
+import { ACCEPT, LIMITES, aceitarTermo, apagarEnvio, avisarTermoMenor, duracaoLegivel, enviarVideo, retirarConsentimento, statusTermo, tamanhoLegivel, validarArquivo } from '../../lib/comunidadeVideo';
+import { ACEITE_TERMO, AUTORIZA_COMPARTILHAR, TERMO_COMUNIDADE } from '../../legal/comunidade';
 
 const data = (iso) => (iso ? new Date(iso).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }) : '');
 
@@ -169,7 +170,7 @@ const OPCOES_VISIBILIDADE = [
     { valor: 'comunidade', icone: Globe, titulo: 'Toda a comunidade', texto: 'Os outros membros também assistem, com o seu primeiro nome. O recado e as respostas do professor continuam só seus.' },
 ];
 
-function NovoEnvio({ espacos, onEnviado }) {
+function NovoEnvio({ espacos, onEnviado, podeCompartilhar }) {
     const [espacoId, setEspacoId] = useState(espacos[0]?.id ?? null);
     const [arquivo, setArquivo] = useState(null);     // { file, duracao }
     const [mensagem, setMensagem] = useState('');
@@ -245,16 +246,19 @@ function NovoEnvio({ espacos, onEnviado }) {
             <fieldset className="space-y-2" disabled={enviando}>
                 <legend className="text-sm font-semibold">Quem pode ver este vídeo</legend>
                 <div className="grid gap-3 sm:grid-cols-2">
-                    {OPCOES_VISIBILIDADE.map((o) => (
-                        <label key={o.valor} className={cn('flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary',
-                            visibilidade === o.valor ? 'border-primary bg-primary/10' : 'border-white/10 hover:border-primary/50')}>
-                            <input type="radio" name="visibilidade" value={o.valor} checked={visibilidade === o.valor} onChange={() => setVisibilidade(o.valor)} className="mt-1 accent-[rgb(var(--c-primary))]" />
+                    {OPCOES_VISIBILIDADE.map((o) => {
+                        const bloqueada = o.valor === 'comunidade' && !podeCompartilhar;
+                        return (
+                        <label key={o.valor} className={cn('flex items-start gap-3 rounded-2xl border p-4 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary',
+                            bloqueada ? 'cursor-not-allowed opacity-50' : 'cursor-pointer', visibilidade === o.valor ? 'border-primary bg-primary/10' : 'border-white/10 hover:border-primary/50')}>
+                            <input type="radio" name="visibilidade" value={o.valor} checked={visibilidade === o.valor} disabled={bloqueada} onChange={() => setVisibilidade(o.valor)} className="mt-1 accent-[rgb(var(--c-primary))]" />
                             <span>
                                 <span className="flex items-center gap-2 text-sm font-semibold"><o.icone className="h-4 w-4" /> {o.titulo}</span>
-                                <span className="mt-1 block text-xs text-text-muted">{o.texto}</span>
+                                <span className="mt-1 block text-xs text-text-muted">{bloqueada ? 'Seu responsável não autorizou o compartilhamento com a comunidade.' : o.texto}</span>
                             </span>
                         </label>
-                    ))}
+                        );
+                    })}
                 </div>
             </fieldset>
 
@@ -279,6 +283,96 @@ function NovoEnvio({ espacos, onEnviado }) {
                 {enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} {enviando ? 'Enviando…' : 'Enviar vídeo'}
             </button>
         </form>
+    );
+}
+
+function TermoConsentimento({ termo, onAceito }) {
+    const doc = TERMO_COMUNIDADE();
+    const [maior, setMaior] = useState(null);   // null = ainda não respondeu
+    const [resp, setResp] = useState({ nome: '', parentesco: '', contato: '' });
+    const [autoriza, setAutoriza] = useState(false);
+    const [concordo, setConcordo] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const [erro, setErro] = useState('');
+
+    const aviso = { versao_antiga: 'O termo foi atualizado desde o seu último aceite. Leia e aceite de novo para continuar enviando vídeos.', revogado: 'Você retirou o consentimento e seus vídeos foram apagados. Para enviar de novo, aceite o termo.' }[termo.status];
+    const completo = maior !== null && concordo && (maior || (resp.nome.trim() && resp.parentesco.trim() && resp.contato.trim()));
+
+    const aceitar = async (ev) => {
+        ev.preventDefault();
+        if (!completo || busy) return;
+        setBusy(true); setErro('');
+        try {
+            const r = await aceitarTermo({ maior, responsavel: resp, autorizaCompartilhar: autoriza });
+            if (r.status === 'aguardando_responsavel') avisarTermoMenor();
+            await onAceito();
+        } catch (e) { setErro(e.message); } finally { setBusy(false); }
+    };
+    const campo = 'input-field h-11 w-full';
+
+    return (
+        <form onSubmit={aceitar} className="space-y-5 rounded-[2rem] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-5 shadow-[var(--glass-relief),var(--glass-drop)] md:p-6">
+            <div className="flex items-start gap-3">
+                <ShieldCheck className="mt-1 h-5 w-5 shrink-0 text-primary" />
+                <div>
+                    <h2 className="text-lg font-bold">Antes de enviar o seu primeiro vídeo</h2>
+                    <p className="mt-1 max-w-[65ch] text-sm text-text-muted">Leia o termo abaixo. Ele explica quem vê o seu vídeo, por quanto tempo ele fica guardado e como você pode apagá-lo.</p>
+                </div>
+            </div>
+            {aviso && <p role="status" className="rounded-2xl border border-primary/40 p-4 text-sm font-semibold">{aviso}</p>}
+
+            <div tabIndex={0} role="region" aria-label={doc.titulo} className="max-h-72 space-y-5 overflow-y-auto rounded-2xl border border-white/10 p-4 text-sm leading-relaxed text-text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+                {doc.secoes.map((sec) => (
+                    <section key={sec.titulo} className="space-y-2">
+                        <h3 className="font-bold text-text">{sec.titulo}</h3>
+                        {sec.blocos.map((b, i) => typeof b === 'string' ? <p key={i}>{b}</p> : <ul key={i} className="list-disc space-y-1 pl-5">{b.lista.map((li) => <li key={li}>{li}</li>)}</ul>)}
+                    </section>
+                ))}
+            </div>
+
+            <fieldset className="space-y-2">
+                <legend className="text-sm font-semibold">Você tem 18 anos ou mais?</legend>
+                <div className="flex flex-wrap gap-3">
+                    {[[true, 'Sim, tenho 18 anos ou mais'], [false, 'Não, tenho menos de 18 anos']].map(([valor, rotulo]) => (
+                        <label key={String(valor)} className={cn('flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border px-4 text-sm font-semibold transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary', maior === valor ? 'border-primary bg-primary/10' : 'border-white/10 hover:border-primary/50')}>
+                            <input type="radio" name="maior" checked={maior === valor} onChange={() => setMaior(valor)} className="accent-[rgb(var(--c-primary))]" /> {rotulo}
+                        </label>
+                    ))}
+                </div>
+            </fieldset>
+
+            {maior === false && (
+                <fieldset className="space-y-4 rounded-2xl border border-white/10 p-4">
+                    <legend className="px-1 text-sm font-semibold">Dados do seu responsável</legend>
+                    <p className="text-xs text-text-muted">O professor vai entrar em contato com o responsável para confirmar a autorização. Enquanto isso, o envio de vídeos fica em espera.</p>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <label className="block space-y-2"><span className="text-sm font-semibold">Nome do responsável</span><input className={campo} value={resp.nome} onChange={(e) => setResp({ ...resp, nome: e.target.value })} maxLength={120} autoComplete="off" /></label>
+                        <label className="block space-y-2"><span className="text-sm font-semibold">Parentesco</span><input className={campo} value={resp.parentesco} onChange={(e) => setResp({ ...resp, parentesco: e.target.value })} maxLength={40} placeholder="Ex.: mãe, pai, avó" autoComplete="off" /></label>
+                    </div>
+                    <label className="block space-y-2"><span className="text-sm font-semibold">Telefone ou e-mail do responsável</span><input className={campo} value={resp.contato} onChange={(e) => setResp({ ...resp, contato: e.target.value })} maxLength={120} autoComplete="off" /></label>
+                    <label className="flex cursor-pointer items-start gap-3 text-sm"><input type="checkbox" checked={autoriza} onChange={(e) => setAutoriza(e.target.checked)} className="mt-1 accent-[rgb(var(--c-primary))]" /> <span>{AUTORIZA_COMPARTILHAR}</span></label>
+                </fieldset>
+            )}
+
+            <label className="flex cursor-pointer items-start gap-3 text-sm font-semibold"><input type="checkbox" checked={concordo} onChange={(e) => setConcordo(e.target.checked)} className="mt-1 accent-[rgb(var(--c-primary))]" /> <span>{ACEITE_TERMO}</span></label>
+
+            {erro && <p role="alert" className="text-sm font-semibold text-red-500">{erro}</p>}
+            <button type="submit" disabled={!completo || busy} className="btn-primary flex h-12 w-full items-center justify-center gap-2 disabled:opacity-40 sm:w-auto sm:px-8">
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} Aceitar e continuar
+            </button>
+        </form>
+    );
+}
+
+function AguardandoResponsavel() {
+    return (
+        <div className="flex max-w-xl items-start gap-3 rounded-[2rem] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-5 md:p-6">
+            <Clock className="mt-1 h-5 w-5 shrink-0 text-primary" />
+            <div>
+                <h2 className="text-lg font-bold">Aguardando a autorização do seu responsável</h2>
+                <p className="mt-2 max-w-[65ch] text-sm text-text-muted">Recebemos o seu pedido. O professor vai falar com o seu responsável e, depois da confirmação, o envio de vídeos é liberado aqui. Você não precisa fazer mais nada.</p>
+            </div>
+        </div>
     );
 }
 
@@ -352,6 +446,19 @@ function MeusEnvios({ espacos }) {
     const [envios, setEnvios] = useState(null);   // null = carregando
     const [respostas, setRespostas] = useState({});
     const [erro, setErro] = useState('');
+    const [termo, setTermo] = useState(null);       // null = carregando
+    const [retirando, setRetirando] = useState(false);
+
+    const carregarTermo = useCallback(async () => {
+        try { setTermo(await statusTermo()); } catch (e) { setErro(e.message); setTermo({ status: 'erro' }); }
+    }, []);
+    useEffect(() => { carregarTermo(); }, [carregarTermo]);
+
+    const retirar = async () => {
+        if (!confirm('Retirar o consentimento apaga TODOS os seus vídeos e não dá para desfazer. Continuar?')) return;
+        setRetirando(true); setErro('');
+        try { await retirarConsentimento(); await carregarTermo(); await carregar(); } catch (e) { setErro(e.message); } finally { setRetirando(false); }
+    };
 
     const carregar = useCallback(async () => {
         const { data: { user } } = await supabase.auth.getUser();
@@ -371,7 +478,10 @@ function MeusEnvios({ espacos }) {
     if (espacos.length === 0) return <p className="text-sm text-text-muted">O professor ainda não criou nenhum espaço. Volte em breve.</p>;
     return (
         <div className="space-y-8">
-            <NovoEnvio espacos={espacos} onEnviado={carregar} />
+            {termo === null && <div className="h-40 animate-pulse rounded-[2rem] bg-white/5" aria-busy="true" />}
+            {termo && termo.status === 'aguardando_responsavel' && <AguardandoResponsavel />}
+            {termo && ['sem_termo', 'versao_antiga', 'revogado'].includes(termo.status) && <TermoConsentimento termo={termo} onAceito={carregarTermo} />}
+            {termo?.status === 'ok' && <NovoEnvio espacos={espacos} onEnviado={carregar} podeCompartilhar={termo.pode_compartilhar === true} />}
             <section className="space-y-4" aria-label="Seus envios">
                 <h2 className="text-lg font-bold">Seus envios</h2>
                 {erro && <p role="alert" className="text-sm font-semibold text-red-500">{erro}</p>}
@@ -386,6 +496,14 @@ function MeusEnvios({ espacos }) {
                     {envios?.map((e) => <CartaoEnvio key={e.id} envio={e} espaco={espacos.find((x) => x.id === e.espaco_id)} respostas={respostas[e.id] ?? []} onApagado={carregar} />)}
                 </div>
             </section>
+            {termo && ['ok', 'aguardando_responsavel'].includes(termo.status) && (
+                <footer className="flex max-w-3xl flex-wrap items-center gap-x-4 gap-y-2 border-t border-white/10 pt-5 text-xs text-text-muted">
+                    <span className="flex items-center gap-2"><ShieldCheck className="h-4 w-4" /> Termo aceito em {data(termo.aceito_em)}.</span>
+                    <button type="button" onClick={retirar} disabled={retirando} className="flex min-h-11 items-center gap-2 font-semibold underline underline-offset-4 hover:text-red-500 disabled:opacity-40">
+                        {retirando && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Retirar meu consentimento (apaga todos os meus vídeos)
+                    </button>
+                </footer>
+            )}
         </div>
     );
 }

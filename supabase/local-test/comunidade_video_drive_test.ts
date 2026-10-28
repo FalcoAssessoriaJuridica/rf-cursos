@@ -21,7 +21,7 @@ const fn = new Deno.Command('deno', {
   env: {
     DENO_SERVE_ADDRESS: 'tcp:127.0.0.1:58998', SUPABASE_URL: API, SUPABASE_ANON_KEY: ANON, SUPABASE_SERVICE_ROLE_KEY: SERVICE,
     ALLOWED_ORIGIN: ORIGEM, GOOGLE_CLIENT_ID: 'cliente-teste', GOOGLE_CLIENT_SECRET: 'segredo-teste', GOOGLE_REFRESH_TOKEN: GOOGLE_MOCK.refresh,
-    RESEND_API_KEY: 'chave-resend-teste', RESEND_API_URL: 'http://127.0.0.1:58976/emails', COMUNIDADE_MAC_EMAIL_PROFESSOR: 'professor@teste.local', APP_URL: 'https://app.teste',
+    RESEND_API_KEY: 'chave-resend-teste', RESEND_API_URL: 'http://127.0.0.1:58976/emails', COMUNIDADE_MAC_EMAIL_PROFESSOR: 'professor@teste.local', COMUNIDADE_MAC_CRON_SECRET: 'segredo-cron-teste', APP_URL: 'https://app.teste',
     GOOGLE_API_URL: google.base, GOOGLE_TOKEN_URL: `${google.base}/token`,
   },
   stdout: 'null', stderr: Deno.env.get('DEBUG_FN') ? 'inherit' : 'null',
@@ -65,7 +65,14 @@ try {
   const espaco = await sql('select id from public.comunidade_espacos limit 1');
   const entrar = (jwt: string) => fetch(`${API}/rest/v1/rpc/comunidade_entrar`, { method: 'POST', headers: { apikey: ANON, Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_codigo: codigo }) });
   await entrar(ana.jwt); await entrar(bruno.jwt);
+  const rpc0 = (jwt: string, fn: string, args: unknown) => fetch(`${API}/rest/v1/rpc/${fn}`, { method: 'POST', headers: { apikey: ANON, Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' }, body: JSON.stringify(args) });
   const valido = { action: 'criar', espaco_id: espaco, duracao_s: 90, tamanho_bytes: conteudo.length, tipo: 'video/mp4', mensagem: 'Segue meu solo' };
+
+  // ── termo de consentimento: sem aceite não há envio ──
+  const antes = await chamar(ana.jwt, valido);
+  check('sem aceitar o termo, o envio é recusado (403, "sem_termo")', antes.status === 403 && antes.body.codigo === 'termo' && antes.body.status === 'sem_termo', JSON.stringify(antes.body));
+  check('recusa por falta de termo não abre nada no Drive nem grava envio', google.sessoes.size === 0 && (await sql(`select count(*) from public.comunidade_envios where aluno_id='${ana.id}'`)) === '0');
+  for (const u of [ana, bruno]) await rpc0(u.jwt, 'comunidade_aceitar_termo', { p_maior: true });
 
   // ── regras de entrada ──
   check('sem login é recusado', (await fetch(FN, { method: 'POST', body: '{}' })).status === 401);
@@ -167,6 +174,59 @@ try {
   await sql(`update public.comunidade_envios set criado_em = now() - interval '20 minutes' where id='${c3.body.envio_id}'`);
   const c4 = await chamar(bruno.jwt, valido);
   check('envio interrompido (20 min) é limpo e libera um novo', c4.status === 200 && !google.arquivos.has(p3.id) && (await sql(`select count(*) from public.comunidade_envios where id='${c3.body.envio_id}'`)) === '0');
+
+
+  // ── menor de idade: só envia depois que o professor confirma o responsável ──
+  const jovem = await usuario(`jovem${stamp}@teste.local`);
+  await entrar(jovem.jwt);
+  check('menor sem dados do responsável não consegue aceitar', (await rpc0(jovem.jwt, 'comunidade_aceitar_termo', { p_maior: false })).status >= 400);
+  const aj = await rpc0(jovem.jwt, 'comunidade_aceitar_termo', { p_maior: false, p_resp_nome: 'Helena Prado', p_resp_parentesco: 'mãe', p_resp_contato: '21 98888-7777', p_autoriza_compartilhar: false });
+  check('menor aceita informando o responsável e fica aguardando', aj.status === 200 && (await aj.json()).status === 'aguardando_responsavel');
+  const j1 = await chamar(jovem.jwt, valido);
+  check('menor aguardando não consegue enviar', j1.status === 403 && j1.body.status === 'aguardando_responsavel', JSON.stringify(j1.body));
+  const nEmails = emails.length;
+  const avm = await chamar(jovem.jwt, { action: 'avisar_termo_menor' });
+  const em = emails[emails.length - 1];
+  check('o professor é avisado por e-mail do pedido do menor', avm.status === 200 && avm.body.enviado === true && emails.length === nEmails + 1 && em.body.to.join() === 'professor@teste.local');
+  check('o e-mail traz o responsável e o contato', em.body.text.includes('Helena Prado') && em.body.text.includes('mãe') && em.body.text.includes('21 98888-7777'));
+  check('o aviso não vale para quem não está aguardando', (await chamar(ana.jwt, { action: 'avisar_termo_menor' })).body.enviado === false);
+  check('o menor não consegue se confirmar sozinho', (await rpc0(jovem.jwt, 'comunidade_confirmar_responsavel', { p_user: jovem.id })).status >= 400);
+  check('o professor confirma a autorização do responsável', (await rpc0(prof.jwt, 'comunidade_confirmar_responsavel', { p_user: jovem.id })).status === 204);
+  check('menor sem autorização expressa não envia para a comunidade', (await chamar(jovem.jwt, { ...valido, visibilidade: 'comunidade' })).status === 403);
+  const j2 = await chamar(jovem.jwt, valido);
+  check('confirmado, o menor envia (só para o professor)', j2.status === 200 && j2.body.provider === 'drive', JSON.stringify(j2.body));
+  const jf = await (await subir(j2.body.upload.url, conteudo)).json();
+  await chamar(jovem.jwt, { action: 'confirmar', envio_id: j2.body.envio_id, file_id: jf.id });
+
+  // ── retirar o consentimento apaga tudo e bloqueia novos envios ──
+  check('o arquivo do menor existe no Drive antes da retirada', google.arquivos.has(jf.id));
+  const rv = await chamar(jovem.jwt, { action: 'revogar_termo' });
+  check('retirar o consentimento apaga os vídeos da pessoa', rv.status === 200 && rv.body.apagados === 1 && !google.arquivos.has(jf.id) && (await sql(`select count(*) from public.comunidade_envios where aluno_id='${jovem.id}'`)) === '0', JSON.stringify(rv.body));
+  const j3 = await chamar(jovem.jwt, valido);
+  check('depois de retirar, o envio é recusado ("revogado")', j3.status === 403 && j3.body.status === 'revogado');
+  check('retirar não afeta os vídeos dos outros', (await sql(`select count(*) from public.comunidade_envios where aluno_id='${ana.id}'`)) !== '0');
+
+  // ── limpeza dos vencidos (agendador e professor) ──
+  const lia = await usuario(`lia${stamp}@teste.local`);
+  await entrar(lia.jwt); await rpc0(lia.jwt, 'comunidade_aceitar_termo', { p_maior: true });
+  const envia = async () => { const r = await chamar(lia.jwt, valido); const f = await (await subir(r.body.upload.url, conteudo)).json(); await chamar(lia.jwt, { action: 'confirmar', envio_id: r.body.envio_id, file_id: f.id }); return { id: r.body.envio_id as string, arquivo: f.id as string }; };
+  const A = await envia(), B = await envia(), C = await envia();
+  await sql(`update public.comunidade_envios set expira_em = now() - interval '1 day' where id in ('${A.id}','${B.id}')`);
+  await sql(`update public.comunidade_envios set guardar = true where id = '${B.id}'`);
+  const D = await chamar(lia.jwt, valido);                                     // upload que nunca terminou
+  const dPend = [...google.arquivos.values()].length;                          // (o arquivo só existe se o PUT acontecer: aqui o PUT nunca acontece)
+  await sql(`update public.comunidade_envios set criado_em = now() - interval '2 days' where id = '${D.body.envio_id}'`);
+  const cronPost = (segredo?: string) => fetch(FN, { method: 'POST', headers: segredo === undefined ? {} : { 'x-cron-secret': segredo, 'Content-Type': 'application/json' }, body: '{}' });
+  check('agendador com senha errada é recusado', (await cronPost('errada')).status === 403);
+  check('aluno comum não executa a limpeza', (await chamar(ana.jwt, { action: 'expurgar' })).status === 403);
+  const limpa = await (await cronPost('segredo-cron-teste')).json();
+  check('o agendador apaga o vencido e o upload abandonado', limpa.apagados === 2 && limpa.falhas === 0 && limpa.vencidos === 1 && limpa.orfaos === 1, JSON.stringify(limpa));
+  check('o vencido sumiu (arquivo e linha)', !google.arquivos.has(A.arquivo) && (await sql(`select count(*) from public.comunidade_envios where id='${A.id}'`)) === '0');
+  check('o vencido que o professor marcou para guardar continua', google.arquivos.has(B.arquivo) && (await sql(`select count(*) from public.comunidade_envios where id='${B.id}'`)) === '1');
+  check('o envio dentro do prazo continua', google.arquivos.has(C.arquivo) && (await sql(`select count(*) from public.comunidade_envios where id='${C.id}'`)) === '1');
+  check('o upload abandonado foi removido do banco', (await sql(`select count(*) from public.comunidade_envios where id='${D.body.envio_id}'`)) === '0');
+  const limpa2 = await chamar(prof.jwt, { action: 'expurgar' });
+  check('o professor também pode rodar a limpeza (e não há mais nada a apagar)', limpa2.status === 200 && limpa2.body.apagados === 0, JSON.stringify(limpa2.body));
 
   // ── limite mensal ──
   for (let i = 0; i < 6; i++) {
