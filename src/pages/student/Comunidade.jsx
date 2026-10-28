@@ -73,14 +73,16 @@ function BotaoPdf({ id, titulo }) {
 
 function Publicacao({ post }) {
     return (
-        <article className="liquid-glass space-y-4 overflow-hidden rounded-[2rem] p-5 md:p-6">
+        // Sem backdrop-filter: no celular ele quebra o toque dentro do iframe do Drive (o play não responde depois de pausar).
+        <article className="space-y-4 rounded-[2rem] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-5 shadow-[var(--glass-relief),var(--glass-drop)] md:p-6">
             <header>
                 <h3 className="text-xl font-bold leading-tight">{post.titulo}</h3>
                 <p className="mt-1 text-xs text-text-muted">{data(post.criado_em)}</p>
             </header>
             {post.video_provider === 'drive' && post.video_ref && (
                 <div className="aspect-video overflow-hidden rounded-2xl bg-black">
-                    <iframe title={post.titulo} src={`https://drive.google.com/file/d/${post.video_ref}/preview`} loading="lazy" allow="autoplay; fullscreen" allowFullScreen className="h-full w-full border-0" />
+                    {/* Sem `allow-popups`: o botão "abrir em outra janela" do Drive não leva o aluno para fora do app, e os controles do player ficam livres. */}
+                    <iframe title={post.titulo} src={`https://drive.google.com/file/d/${post.video_ref}/preview`} sandbox="allow-scripts allow-same-origin" allow="autoplay; fullscreen" allowFullScreen className="h-full w-full border-0" />
                 </div>
             )}
             {post.texto && <p className="max-w-[65ch] whitespace-pre-line text-sm leading-relaxed text-text-muted">{post.texto}</p>}
