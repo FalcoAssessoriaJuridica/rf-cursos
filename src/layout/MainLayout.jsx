@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LogOut, LayoutDashboard, Users, BookOpen, GraduationCap, ArrowLeft, UserRound, Music2, CreditCard } from 'lucide-react';
+import { LogOut, LayoutDashboard, Users, BookOpen, GraduationCap, ArrowLeft, UserRound, Music2, CreditCard, HeartHandshake } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { Button } from '../components/Button';
@@ -85,6 +85,7 @@ export default function MainLayout({ isAdmin = false }) {
             { href: '/admin/partituras', label: 'Acervo', icon: Music2 },
             { href: '/admin/students', label: 'Alunos', icon: Users },
             { href: '/admin/precos', label: 'Preços', icon: CreditCard },
+            { href: '/admin/comunidade', label: 'Comunidade', icon: HeartHandshake },
             { href: '/student', label: 'Área do Aluno', icon: GraduationCap },
         ]
         : [
