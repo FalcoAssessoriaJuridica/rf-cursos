@@ -205,10 +205,9 @@ function Espacos({ comunidade, espacos, posts, envios, recarregar }) {
     );
 }
 
-function CartaoEnvio({ envio, espaco, aluno, respostas, userId, recarregar }) {
+function CartaoEnvio({ envio, espaco, aluno, respostas, userId, recarregar, onAviso }) {
     const [texto, setTexto] = useState('');
     const [apagando, setApagando] = useState(false);
-    const [emailMsg, setEmailMsg] = useState(null);
     const { busy, msg, rodar } = useAcao(recarregar);
     const respondido = envio.status === 'respondido';
 
@@ -223,7 +222,11 @@ function CartaoEnvio({ envio, espaco, aluno, respostas, userId, recarregar }) {
         if (ok) {
             setTexto('');
             // O aluno recebe um aviso por e-mail; se o e-mail falhar, a resposta já está salva e aparece no app dele.
-            avisarResposta(envio.id).then((saiu) => setEmailMsg(saiu ? { ok: true, text: 'Aluno avisado por e-mail.' } : { ok: false, text: 'Resposta salva, mas o e-mail de aviso não saiu.' })).catch(() => setEmailMsg({ ok: false, text: 'Resposta salva, mas o e-mail de aviso não saiu.' }));
+            // O resultado vai para o topo da lista (o cartão sai da fila de "Novos" assim que o envio é respondido).
+            const nome = aluno?.nome || 'o aluno';
+            avisarResposta(envio.id)
+                .then((saiu) => onAviso(saiu ? { ok: true, text: `Resposta salva. ${nome} foi avisado(a) por e-mail.` } : { ok: false, text: `Resposta salva, mas o e-mail de aviso para ${nome} não saiu. Ela aparece no app do aluno mesmo assim.` }))
+                .catch(() => onAviso({ ok: false, text: `Resposta salva, mas o e-mail de aviso para ${nome} não saiu. Ela aparece no app do aluno mesmo assim.` }));
         }
     };
     const apagar = async () => {
@@ -287,7 +290,6 @@ function CartaoEnvio({ envio, espaco, aluno, respostas, userId, recarregar }) {
                         {apagando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Apagar
                     </button>
                     <Aviso msg={msg} />
-                    <Aviso msg={emailMsg} />
                 </div>
             </form>
         </article>
@@ -297,6 +299,7 @@ function CartaoEnvio({ envio, espaco, aluno, respostas, userId, recarregar }) {
 function Envios({ espacos, envios, respostas, perfis, userId, recarregar }) {
     const [situacao, setSituacao] = useState('novo');   // novo | respondido | todos
     const [espacoId, setEspacoId] = useState('todos');
+    const [avisoEmail, setAvisoEmail] = useState(null);
     const prontos = envios.filter((e) => e.upload_ok);
     const lista = prontos.filter((e) => (situacao === 'todos' || e.status === situacao) && (espacoId === 'todos' || e.espaco_id === espacoId));
     const qtd = (st) => prontos.filter((e) => st === 'todos' || e.status === st).length;
@@ -317,6 +320,8 @@ function Envios({ espacos, envios, respostas, perfis, userId, recarregar }) {
                 </div>
             </div>
 
+            <Aviso msg={avisoEmail} />
+
             {lista.length === 0 ? (
                 <p className="max-w-md text-sm text-text-muted">
                     {prontos.length === 0 ? 'Nenhum aluno enviou vídeo ainda. Quando enviarem, aparecem aqui.' : 'Nenhum envio neste filtro.'}
@@ -324,7 +329,7 @@ function Envios({ espacos, envios, respostas, perfis, userId, recarregar }) {
             ) : (
                 <section aria-label="Envios dos alunos">
                     {lista.map((e) => (
-                        <CartaoEnvio key={e.id} envio={e} espaco={espacos.find((x) => x.id === e.espaco_id)} aluno={perfis[e.aluno_id]} respostas={respostas[e.id] ?? []} userId={userId} recarregar={recarregar} />
+                        <CartaoEnvio key={e.id} envio={e} espaco={espacos.find((x) => x.id === e.espaco_id)} aluno={perfis[e.aluno_id]} respostas={respostas[e.id] ?? []} userId={userId} recarregar={recarregar} onAviso={setAvisoEmail} />
                     ))}
                 </section>
             )}
