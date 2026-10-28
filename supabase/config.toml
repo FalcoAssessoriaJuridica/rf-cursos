@@ -412,3 +412,7 @@ enabled = true
 # declarative_schema_path = "./schemas"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+# Comunidade MAC: o <video> do navegador não consegue enviar o login. O JWT é conferido dentro da função, em cada ação, e a reprodução usa token assinado.
+[functions.comunidade-video]
+verify_jwt = false

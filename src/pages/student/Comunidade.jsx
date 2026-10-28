@@ -1,8 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { FileText, Loader2, LogIn, MessageSquareText, Minimize2, Play } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { CheckCircle2, Clock, FileText, Loader2, LogIn, MessageSquareText, Minimize2, Play, Trash2, Upload } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { driveFetch, driveProxyUrl } from '../../lib/driveProxy';
 import { cn } from '../../lib/utils';
+import EnvioPlayer from '../../components/EnvioPlayer';
+import { ACCEPT, LIMITES, apagarEnvio, duracaoLegivel, enviarVideo, tamanhoLegivel, validarArquivo } from '../../lib/comunidadeVideo';
 
 const data = (iso) => (iso ? new Date(iso).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }) : '');
 
@@ -158,12 +160,206 @@ function Mural({ espacos, posts }) {
     );
 }
 
+const SELETOR_ESPACO = 'flex flex-wrap gap-2';
+const pilula = (ativo) => cn('h-10 rounded-full border px-4 text-sm font-semibold transition-colors',
+    ativo ? 'border-primary bg-primary text-black' : 'border-white/10 text-text-muted hover:border-primary/50 hover:text-text');
+
+function NovoEnvio({ espacos, onEnviado }) {
+    const [espacoId, setEspacoId] = useState(espacos[0]?.id ?? null);
+    const [arquivo, setArquivo] = useState(null);     // { file, duracao }
+    const [mensagem, setMensagem] = useState('');
+    const [progresso, setProgresso] = useState(null);  // null = parado; 0..100 enviando; 100 = conferindo
+    const [erro, setErro] = useState('');
+    const [ok, setOk] = useState('');
+    const inputRef = useRef(null);
+    const enviando = progresso !== null;
+
+    // Fechar a página no meio do envio perde o vídeo: avisa antes.
+    useEffect(() => {
+        if (!enviando) return undefined;
+        const aviso = (e) => { e.preventDefault(); e.returnValue = ''; };
+        window.addEventListener('beforeunload', aviso);
+        return () => window.removeEventListener('beforeunload', aviso);
+    }, [enviando]);
+
+    const escolher = async (ev) => {
+        const file = ev.target.files?.[0];
+        ev.target.value = '';
+        setErro(''); setOk(''); setArquivo(null);
+        if (!file) return;
+        try { const { duracao } = await validarArquivo(file); setArquivo({ file, duracao }); } catch (e) { setErro(e.message); }
+    };
+
+    const enviar = async (ev) => {
+        ev.preventDefault();
+        if (!arquivo || !espacoId || enviando) return;
+        setErro(''); setOk(''); setProgresso(0);
+        try {
+            await enviarVideo(arquivo.file, { espacoId, mensagem, onProgresso: setProgresso });
+            setArquivo(null); setMensagem('');
+            setOk('Vídeo enviado. O professor vai assistir e responder por aqui.');
+            await onEnviado();
+        } catch (e) {
+            setErro(e.message);
+        } finally { setProgresso(null); }
+    };
+
+    return (
+        <form onSubmit={enviar} className="space-y-5 rounded-[2rem] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-5 shadow-[var(--glass-relief),var(--glass-drop)] md:p-6">
+            <div>
+                <h2 className="text-lg font-bold">Enviar um vídeo ao professor</h2>
+                <p className="mt-1 max-w-[65ch] text-sm text-text-muted">
+                    Só você e o professor veem o vídeo. Até {LIMITES.segundos / 60} minutos e {tamanhoLegivel(LIMITES.bytes)}, em MP4, MOV ou WebM. Ele fica guardado por 90 dias.
+                </p>
+            </div>
+
+            {espacos.length > 1 && (
+                <div className="space-y-2">
+                    <span className="text-sm font-semibold">Instrumento</span>
+                    <div className={SELETOR_ESPACO} role="group" aria-label="Instrumento do envio">
+                        {espacos.map((e) => (
+                            <button key={e.id} type="button" disabled={enviando} onClick={() => setEspacoId(e.id)} aria-pressed={espacoId === e.id} className={cn(pilula(espacoId === e.id), 'disabled:opacity-50')}>{e.nome}</button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            <div className="space-y-2">
+                <span className="text-sm font-semibold">Vídeo</span>
+                <input ref={inputRef} type="file" accept={ACCEPT} onChange={escolher} className="sr-only" tabIndex={-1} aria-hidden="true" />
+                <div className="flex flex-wrap items-center gap-3">
+                    <button type="button" disabled={enviando} onClick={() => inputRef.current?.click()}
+                        className="flex h-12 items-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-semibold transition-colors hover:border-primary/50 disabled:opacity-50">
+                        <Upload className="h-4 w-4" /> {arquivo ? 'Trocar vídeo' : 'Escolher vídeo'}
+                    </button>
+                    {arquivo && <span className="text-sm text-text-muted">{arquivo.file.name} · {tamanhoLegivel(arquivo.file.size)} · {duracaoLegivel(arquivo.duracao)}</span>}
+                </div>
+            </div>
+
+            <label className="block space-y-2">
+                <span className="text-sm font-semibold">Recado para o professor <span className="font-normal text-text-muted">(opcional)</span></span>
+                <textarea className="input-field min-h-20 w-full py-3" value={mensagem} onChange={(e) => setMensagem(e.target.value)} maxLength={1000} disabled={enviando}
+                    placeholder="Ex.: Estou com dificuldade na mão esquerda a partir do compasso 9." />
+            </label>
+
+            {enviando && (
+                <div className="space-y-2" aria-live="polite">
+                    <div className="h-2 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progresso} aria-label="Progresso do envio">
+                        <div className="h-full rounded-full bg-primary transition-[width] duration-300" style={{ width: `${progresso}%` }} />
+                    </div>
+                    <p className="text-xs text-text-muted">{progresso < 100 ? `Enviando… ${progresso}%. Não feche esta página.` : 'Conferindo o arquivo…'}</p>
+                </div>
+            )}
+            {erro && <p role="alert" className="text-sm font-semibold text-red-500">{erro}</p>}
+            {ok && <p role="status" className="text-sm font-semibold text-green-600">{ok}</p>}
+
+            <button type="submit" disabled={!arquivo || !espacoId || enviando} className="btn-primary flex h-12 w-full items-center justify-center gap-2 disabled:opacity-40 sm:w-auto sm:px-8">
+                {enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} {enviando ? 'Enviando…' : 'Enviar vídeo'}
+            </button>
+        </form>
+    );
+}
+
+function CartaoEnvio({ envio, espaco, respostas, onApagado }) {
+    const [apagando, setApagando] = useState(false);
+    const [erro, setErro] = useState('');
+    const apagar = async () => {
+        if (!confirm('Apagar este vídeo? Ele some para você e para o professor e não dá para desfazer.')) return;
+        setApagando(true); setErro('');
+        try { await apagarEnvio(envio.id); await onApagado(); } catch (e) { setErro(e.message); setApagando(false); }
+    };
+    const incompleto = !envio.upload_ok;
+    const respondido = envio.status === 'respondido';
+    return (
+        <article className="space-y-4 rounded-[2rem] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-5 shadow-[var(--glass-relief),var(--glass-drop)] md:p-6">
+            <header className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <h3 className="text-lg font-bold leading-tight">{espaco?.nome ?? 'Envio'}</h3>
+                    <p className="mt-1 text-xs text-text-muted">Enviado em {data(envio.criado_em)}{!envio.guardar && envio.expira_em ? ` · disponível até ${data(envio.expira_em)}` : ''}</p>
+                </div>
+                <span className={cn('flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold',
+                    incompleto ? 'border-red-500/40 text-red-500' : respondido ? 'border-green-600/40 text-green-600' : 'border-white/15 text-text-muted')}>
+                    {incompleto ? 'Envio incompleto' : respondido ? <><CheckCircle2 className="h-3.5 w-3.5" /> Respondido</> : <><Clock className="h-3.5 w-3.5" /> Aguardando o professor</>}
+                </span>
+            </header>
+
+            {incompleto
+                ? <p className="text-sm text-text-muted">Este envio não terminou. Apague e envie o vídeo de novo.</p>
+                : <EnvioPlayer envioId={envio.id} titulo={`Seu vídeo de ${espaco?.nome ?? 'instrumento'}`} />}
+
+            {envio.mensagem && <p className="max-w-[65ch] whitespace-pre-line text-sm text-text-muted"><span className="font-semibold text-text">Seu recado: </span>{envio.mensagem}</p>}
+
+            {respostas.length > 0 && (
+                <div className="space-y-3 border-t border-white/10 pt-4">
+                    {respostas.map((r) => (
+                        <div key={r.id} className="rounded-2xl bg-white/5 p-4">
+                            <p className="text-xs font-semibold text-primary">Professor · {data(r.criado_em)}</p>
+                            <p className="mt-1 max-w-[65ch] whitespace-pre-line text-sm">{r.texto}</p>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-3">
+                <button type="button" onClick={apagar} disabled={apagando}
+                    className="flex h-11 items-center gap-2 rounded-xl border border-white/10 px-4 text-sm text-text-muted transition-colors hover:border-red-500/50 hover:text-red-500 disabled:opacity-40">
+                    {apagando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Apagar vídeo
+                </button>
+                {erro && <p role="alert" className="text-xs font-semibold text-red-500">{erro}</p>}
+            </div>
+        </article>
+    );
+}
+
+function MeusEnvios({ espacos }) {
+    const [envios, setEnvios] = useState(null);   // null = carregando
+    const [respostas, setRespostas] = useState({});
+    const [erro, setErro] = useState('');
+
+    const carregar = useCallback(async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        const en = await supabase.from('comunidade_envios')
+            .select('id, espaco_id, mensagem, status, upload_ok, guardar, criado_em, expira_em').eq('aluno_id', user.id).order('criado_em', { ascending: false });
+        if (en.error) { setErro(en.error.message); setEnvios([]); return; }
+        const ids = en.data.map((e) => e.id);
+        const re = ids.length ? await supabase.from('comunidade_respostas').select('id, envio_id, texto, criado_em').in('envio_id', ids).order('criado_em') : { data: [] };
+        if (re.error) { setErro(re.error.message); return; }
+        const porEnvio = {};
+        for (const r of re.data) (porEnvio[r.envio_id] ??= []).push(r);
+        setRespostas(porEnvio); setEnvios(en.data); setErro('');
+    }, []);
+
+    useEffect(() => { carregar(); }, [carregar]);
+
+    if (espacos.length === 0) return <p className="text-sm text-text-muted">O professor ainda não criou nenhum espaço. Volte em breve.</p>;
+    return (
+        <div className="space-y-8">
+            <NovoEnvio espacos={espacos} onEnviado={carregar} />
+            <section className="space-y-4" aria-label="Seus envios">
+                <h2 className="text-lg font-bold">Seus envios</h2>
+                {erro && <p role="alert" className="text-sm font-semibold text-red-500">{erro}</p>}
+                {envios === null && <div className="h-40 animate-pulse rounded-[2rem] bg-white/5" aria-busy="true" />}
+                {envios?.length === 0 && (
+                    <div className="flex max-w-md items-start gap-3 rounded-2xl border border-white/10 p-5 text-sm text-text-muted">
+                        <MessageSquareText className="mt-0.5 h-5 w-5 shrink-0" />
+                        <p>Você ainda não enviou nenhum vídeo. Quando enviar, ele aparece aqui junto com a resposta do professor.</p>
+                    </div>
+                )}
+                <div className="grid gap-6 lg:max-w-3xl">
+                    {envios?.map((e) => <CartaoEnvio key={e.id} envio={e} espaco={espacos.find((x) => x.id === e.espaco_id)} respostas={respostas[e.id] ?? []} onApagado={carregar} />)}
+                </div>
+            </section>
+        </div>
+    );
+}
+
 export default function Comunidade() {
     const [estado, setEstado] = useState('carregando'); // carregando | fora | dentro
     const [comunidade, setComunidade] = useState(null);
     const [espacos, setEspacos] = useState([]);
     const [posts, setPosts] = useState([]);
     const [erro, setErro] = useState('');
+    const [aba, setAba] = useState('aulas');
 
     const carregar = useCallback(async () => {
         const { data: com, error } = await supabase.from('comunidades').select('id, nome').eq('slug', 'mac').maybeSingle();
@@ -192,7 +388,19 @@ export default function Comunidade() {
             {erro && <p role="alert" className="text-sm font-semibold text-red-500">{erro}</p>}
             {estado === 'carregando' && <div className="h-40 animate-pulse rounded-[2rem] bg-white/5" aria-busy="true" />}
             {estado === 'fora' && <EntrarComCodigo onEntrou={carregar} />}
-            {estado === 'dentro' && <Mural espacos={espacos} posts={posts} />}
+            {estado === 'dentro' && (
+                <>
+                    <div role="tablist" aria-label="Seções" className="flex gap-2 border-b border-white/10 pb-3">
+                        {[['aulas', 'Aulas'], ['envios', 'Meus envios']].map(([id, rotulo]) => (
+                            <button key={id} role="tab" type="button" aria-selected={aba === id} onClick={() => setAba(id)}
+                                className={cn('h-11 rounded-lg px-4 text-sm font-semibold transition-colors', aba === id ? 'bg-primary text-black' : 'text-text-muted hover:text-text')}>{rotulo}</button>
+                        ))}
+                    </div>
+                    <div role="tabpanel">
+                        {aba === 'aulas' ? <Mural espacos={espacos} posts={posts} /> : <MeusEnvios espacos={espacos} />}
+                    </div>
+                </>
+            )}
         </div>
     );
 }

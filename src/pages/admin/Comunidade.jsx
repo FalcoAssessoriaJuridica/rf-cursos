@@ -1,11 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Check, Copy, FileText, Loader2, Plus, RefreshCw, Trash2, UserCheck, UserX, Video } from 'lucide-react';
+import { Check, Copy, FileText, Loader2, Plus, RefreshCw, Send, Trash2, UserCheck, UserX, Video } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { driveId } from '../../lib/media';
 import { cn } from '../../lib/utils';
+import EnvioPlayer from '../../components/EnvioPlayer';
+import { apagarEnvio, duracaoLegivel, tamanhoLegivel } from '../../lib/comunidadeVideo';
 
 const ABAS = [
     { id: 'mural', label: 'Mural' },
+    { id: 'envios', label: 'Envios' },
     { id: 'espacos', label: 'Espaços' },
     { id: 'membros', label: 'Membros' },
     { id: 'acesso', label: 'Código de acesso' },
@@ -143,12 +146,16 @@ function Mural({ espacos, posts, userId, recarregar }) {
     );
 }
 
-function LinhaEspaco({ espaco, qtdPosts, qtdEnvios, recarregar }) {
+function LinhaEspaco({ espaco, qtdPosts, idsEnvios, recarregar }) {
+    const qtdEnvios = idsEnvios.length;
     const [nome, setNome] = useState(espaco.nome);
     const { busy, msg, rodar } = useAcao(recarregar);
     const alterado = nome.trim() && nome.trim() !== espaco.nome;
     const apagar = () => confirm(`Apagar o espaço "${espaco.nome}"? Isso apaga também ${qtdPosts} publicação(ões) e ${qtdEnvios} envio(s) de alunos. Não dá para desfazer.`)
-        && rodar(() => supabase.from('comunidade_espacos').delete().eq('id', espaco.id), 'Espaço apagado.');
+        && rodar(async () => {
+            for (const id of idsEnvios) await apagarEnvio(id);   // remove os arquivos no Bunny antes de apagar as linhas (senão ficariam órfãos e cobrados)
+            return supabase.from('comunidade_espacos').delete().eq('id', espaco.id);
+        }, 'Espaço apagado.');
     return (
         <div className="flex flex-wrap items-center gap-3 border-t border-white/5 py-3 first:border-t-0">
             <input className="input-field h-10 w-56" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={40} aria-label={`Nome do espaço ${espaco.nome}`} />
@@ -191,9 +198,129 @@ function Espacos({ comunidade, espacos, posts, envios, recarregar }) {
             <section aria-label="Espaços existentes">
                 {espacos.map((e) => (
                     <LinhaEspaco key={e.id + e.nome} espaco={e} recarregar={recarregar}
-                        qtdPosts={posts.filter((p) => p.espaco_id === e.id).length} qtdEnvios={envios.filter((v) => v.espaco_id === e.id).length} />
+                        qtdPosts={posts.filter((p) => p.espaco_id === e.id).length} idsEnvios={envios.filter((v) => v.espaco_id === e.id).map((v) => v.id)} />
                 ))}
             </section>
+        </div>
+    );
+}
+
+function CartaoEnvio({ envio, espaco, aluno, respostas, userId, recarregar }) {
+    const [texto, setTexto] = useState('');
+    const [apagando, setApagando] = useState(false);
+    const { busy, msg, rodar } = useAcao(recarregar);
+    const respondido = envio.status === 'respondido';
+
+    const responder = async (ev) => {
+        ev.preventDefault();
+        if (!texto.trim()) return;
+        const ok = await rodar(async () => {
+            const r = await supabase.from('comunidade_respostas').insert({ envio_id: envio.id, autor_id: userId, texto: texto.trim() });
+            if (r.error) return r;
+            return supabase.from('comunidade_envios').update({ status: 'respondido' }).eq('id', envio.id);
+        }, 'Resposta enviada.');
+        if (ok) setTexto('');
+    };
+    const apagar = async () => {
+        if (!confirm(`Apagar o vídeo de ${aluno?.nome || 'aluno'}? O arquivo é removido e não dá para desfazer.`)) return;
+        setApagando(true);
+        try { await apagarEnvio(envio.id); await recarregar(); } catch (e) { alert(e.message); setApagando(false); }
+    };
+
+    return (
+        <article className="space-y-4 border-t border-white/5 py-6 first:border-t-0 first:pt-0">
+            <header className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <h3 className="text-lg font-bold leading-tight">{aluno?.nome || 'Sem nome'}</h3>
+                    <p className="mt-1 text-xs text-text-muted">
+                        {espaco?.nome ?? '—'} · {data(envio.criado_em)} · {envio.duracao_s ? duracaoLegivel(envio.duracao_s) : '—'} · {envio.tamanho_bytes ? tamanhoLegivel(envio.tamanho_bytes) : '—'}
+                        {envio.guardar ? ' · guardado' : ` · expira em ${data(envio.expira_em)}`}
+                    </p>
+                </div>
+                <span className={cn('rounded-full border px-3 py-1 text-xs font-semibold', respondido ? 'border-green-600/40 text-green-600' : 'border-primary/50 text-primary')}>
+                    {respondido ? 'Respondido' : 'Novo'}
+                </span>
+            </header>
+
+            <div className="max-w-3xl"><EnvioPlayer envioId={envio.id} titulo={`Vídeo de ${aluno?.nome || 'aluno'}`} /></div>
+
+            {envio.mensagem && <p className="max-w-[65ch] whitespace-pre-line text-sm text-text-muted"><span className="font-semibold text-text">Recado do aluno: </span>{envio.mensagem}</p>}
+
+            {respostas.length > 0 && (
+                <div className="max-w-3xl space-y-2">
+                    {respostas.map((r) => (
+                        <div key={r.id} className="rounded-2xl bg-white/5 p-4">
+                            <p className="text-xs font-semibold text-primary">Sua resposta · {data(r.criado_em)}</p>
+                            <p className="mt-1 whitespace-pre-line text-sm">{r.texto}</p>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            <form onSubmit={responder} className="max-w-3xl space-y-3">
+                <label className="block space-y-2">
+                    <span className="text-sm font-semibold">{respondido ? 'Nova resposta' : 'Responder ao aluno'}</span>
+                    <textarea className="input-field min-h-24 w-full py-3" value={texto} onChange={(e) => setTexto(e.target.value)} maxLength={2000} placeholder="O que ele fez bem, o que ajustar, o que estudar até o próximo vídeo…" />
+                </label>
+                <div className="flex flex-wrap items-center gap-3">
+                    <button type="submit" disabled={busy || !texto.trim()} className="btn-primary flex h-11 items-center gap-2 px-5 text-sm disabled:opacity-40">
+                        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Enviar resposta
+                    </button>
+                    <button type="button" disabled={busy} onClick={() => rodar(() => supabase.from('comunidade_envios').update({ guardar: !envio.guardar }).eq('id', envio.id), envio.guardar ? 'Voltou a expirar.' : 'Guardado: não expira.')}
+                        className="flex h-11 items-center gap-2 rounded-lg border border-white/10 px-4 text-sm text-text-muted hover:border-primary/50 hover:text-text disabled:opacity-40">
+                        {envio.guardar ? 'Deixar expirar' : 'Guardar (não expira)'}
+                    </button>
+                    {!respondido && (
+                        <button type="button" disabled={busy} onClick={() => rodar(() => supabase.from('comunidade_envios').update({ status: 'respondido' }).eq('id', envio.id), 'Marcado como respondido.')}
+                            className="flex h-11 items-center gap-2 rounded-lg border border-white/10 px-4 text-sm text-text-muted hover:border-primary/50 hover:text-text disabled:opacity-40">
+                            <Check className="h-4 w-4" /> Marcar como respondido
+                        </button>
+                    )}
+                    <button type="button" disabled={busy || apagando} onClick={apagar}
+                        className="flex h-11 items-center gap-2 rounded-lg border border-white/10 px-4 text-sm text-text-muted hover:border-red-500/50 hover:text-red-500 disabled:opacity-40">
+                        {apagando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Apagar
+                    </button>
+                    <Aviso msg={msg} />
+                </div>
+            </form>
+        </article>
+    );
+}
+
+function Envios({ espacos, envios, respostas, perfis, userId, recarregar }) {
+    const [situacao, setSituacao] = useState('novo');   // novo | respondido | todos
+    const [espacoId, setEspacoId] = useState('todos');
+    const prontos = envios.filter((e) => e.upload_ok);
+    const lista = prontos.filter((e) => (situacao === 'todos' || e.status === situacao) && (espacoId === 'todos' || e.espaco_id === espacoId));
+    const qtd = (st) => prontos.filter((e) => st === 'todos' || e.status === st).length;
+    const pilula = (ativo) => cn('h-10 rounded-full border px-4 text-sm font-semibold transition-colors',
+        ativo ? 'border-primary bg-primary text-black' : 'border-white/10 text-text-muted hover:border-primary/50 hover:text-text');
+
+    return (
+        <div className="space-y-6">
+            <div className="space-y-3">
+                <div className="flex flex-wrap gap-2" role="group" aria-label="Situação">
+                    {[['novo', 'Novos'], ['respondido', 'Respondidos'], ['todos', 'Todos']].map(([id, rotulo]) => (
+                        <button key={id} type="button" aria-pressed={situacao === id} onClick={() => setSituacao(id)} className={pilula(situacao === id)}>{rotulo} ({qtd(id)})</button>
+                    ))}
+                </div>
+                <div className="flex flex-wrap gap-2" role="group" aria-label="Instrumento">
+                    <button type="button" aria-pressed={espacoId === 'todos'} onClick={() => setEspacoId('todos')} className={pilula(espacoId === 'todos')}>Todos os instrumentos</button>
+                    {espacos.map((e) => <button key={e.id} type="button" aria-pressed={espacoId === e.id} onClick={() => setEspacoId(e.id)} className={pilula(espacoId === e.id)}>{e.nome}</button>)}
+                </div>
+            </div>
+
+            {lista.length === 0 ? (
+                <p className="max-w-md text-sm text-text-muted">
+                    {prontos.length === 0 ? 'Nenhum aluno enviou vídeo ainda. Quando enviarem, aparecem aqui.' : 'Nenhum envio neste filtro.'}
+                </p>
+            ) : (
+                <section aria-label="Envios dos alunos">
+                    {lista.map((e) => (
+                        <CartaoEnvio key={e.id} envio={e} espaco={espacos.find((x) => x.id === e.espaco_id)} aluno={perfis[e.aluno_id]} respostas={respostas[e.id] ?? []} userId={userId} recarregar={recarregar} />
+                    ))}
+                </section>
+            )}
         </div>
     );
 }
@@ -280,6 +407,8 @@ export default function Comunidade() {
     const [espacos, setEspacos] = useState([]);
     const [posts, setPosts] = useState([]);
     const [envios, setEnvios] = useState([]);
+    const [respostas, setRespostas] = useState({});
+    const [perfis, setPerfis] = useState({});
     const [membros, setMembros] = useState([]);
     const [codigo, setCodigo] = useState(null);
     const [userId, setUserId] = useState(null);
@@ -299,20 +428,29 @@ export default function Comunidade() {
         const falha = esp.error || cod.error || mem.error;
         if (falha) { setErro(falha.message); return; }
         const ids = esp.data.map((e) => e.id);
-        const [po, en, pe] = await Promise.all([
+        const [po, en] = await Promise.all([
             ids.length ? supabase.from('comunidade_posts').select('id, espaco_id, titulo, texto, video_ref, pdf_ref, criado_em').in('espaco_id', ids).order('criado_em', { ascending: false }) : { data: [] },
-            ids.length ? supabase.from('comunidade_envios').select('id, espaco_id').in('espaco_id', ids) : { data: [] },
-            mem.data.length ? supabase.from('perfis').select('id, nome_completo, email').in('id', mem.data.map((m) => m.user_id)) : { data: [] },
+            ids.length ? supabase.from('comunidade_envios').select('id, espaco_id, aluno_id, mensagem, status, upload_ok, guardar, duracao_s, tamanho_bytes, criado_em, expira_em').in('espaco_id', ids).order('criado_em', { ascending: false }) : { data: [] },
         ]);
-        if (po.error || en.error || pe.error) { setErro((po.error || en.error || pe.error).message); return; }
-        const perfil = Object.fromEntries((pe.data ?? []).map((p) => [p.id, p]));
-        setComunidade(com); setEspacos(esp.data); setCodigo(cod.data); setPosts(po.data ?? []); setEnvios(en.data ?? []);
-        setMembros(mem.data.map((m) => ({ ...m, nome: perfil[m.user_id]?.nome_completo || 'Sem nome', email: perfil[m.user_id]?.email || '' })));
+        if (po.error || en.error) { setErro((po.error || en.error).message); return; }
+        const idsPessoas = [...new Set([...mem.data.map((m) => m.user_id), ...(en.data ?? []).map((e) => e.aluno_id)])];
+        const idsEnvios = (en.data ?? []).map((e) => e.id);
+        const [pe, re] = await Promise.all([
+            idsPessoas.length ? supabase.from('perfis').select('id, nome_completo, email').in('id', idsPessoas) : { data: [] },
+            idsEnvios.length ? supabase.from('comunidade_respostas').select('id, envio_id, texto, criado_em').in('envio_id', idsEnvios).order('criado_em') : { data: [] },
+        ]);
+        if (pe.error || re.error) { setErro((pe.error || re.error).message); return; }
+        const perfil = Object.fromEntries((pe.data ?? []).map((p) => [p.id, { nome: p.nome_completo || 'Sem nome', email: p.email || '' }]));
+        const porEnvio = {};
+        for (const r of re.data ?? []) (porEnvio[r.envio_id] ??= []).push(r);
+        setComunidade(com); setEspacos(esp.data); setCodigo(cod.data); setPosts(po.data ?? []); setEnvios(en.data ?? []); setRespostas(porEnvio); setPerfis(perfil);
+        setMembros(mem.data.map((m) => ({ ...m, nome: perfil[m.user_id]?.nome ?? 'Sem nome', email: perfil[m.user_id]?.email ?? '' })));
         setUserId(sess.data?.session?.user?.id ?? null);
         setErro('');
     }, []);
 
     useEffect(() => { carregar().finally(() => setLoading(false)); }, [carregar]);
+    const novos = envios.filter((e) => e.upload_ok && e.status === 'novo').length;
 
     return (
         <div className="mx-auto max-w-5xl space-y-8 pb-10">
@@ -333,12 +471,13 @@ export default function Comunidade() {
                             <button key={a.id} role="tab" type="button" aria-selected={aba === a.id} onClick={() => setAba(a.id)}
                                 className={cn('h-10 rounded-lg px-4 text-sm font-semibold transition-colors',
                                     aba === a.id ? 'bg-primary text-black' : 'text-text-muted hover:text-text')}>
-                                {a.label}{a.id === 'membros' ? ` (${membros.length})` : ''}
+                                {a.label}{a.id === 'membros' ? ` (${membros.length})` : ''}{a.id === 'envios' && novos > 0 ? ` (${novos} novo${novos > 1 ? 's' : ''})` : ''}
                             </button>
                         ))}
                     </div>
                     <div role="tabpanel">
                         {aba === 'mural' && <Mural espacos={espacos} posts={posts} userId={userId} recarregar={carregar} />}
+                        {aba === 'envios' && <Envios espacos={espacos} envios={envios} respostas={respostas} perfis={perfis} userId={userId} recarregar={carregar} />}
                         {aba === 'espacos' && <Espacos comunidade={comunidade} espacos={espacos} posts={posts} envios={envios} recarregar={carregar} />}
                         {aba === 'membros' && <Membros membros={membros} recarregar={carregar} />}
                         {aba === 'acesso' && <Acesso comunidade={comunidade} codigo={codigo} recarregar={carregar} />}

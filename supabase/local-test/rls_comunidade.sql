@@ -1,4 +1,4 @@
--- Matriz de RLS da Comunidade MAC (migração 0017). Rodar depois de run.sh base + 0017:  ./matriz.sh rls_comunidade.sql
+-- Matriz de RLS da Comunidade MAC (migrações 0017 a 0019). Rodar depois de run.sh base + 0009, 0017, 0018 e 0019:  ./matriz.sh rls_comunidade.sql
 drop schema if exists t cascade;
 create schema t;
 grant usage on schema t to anon, authenticated;
@@ -115,24 +115,32 @@ select t.eq('membro não abre arquivo desconhecido', t.n($$select 1 where public
 select t.as_user(:X::uuid);
 select t.eq('quem não é membro não abre o PDF do mural', t.n($$select 1 where public.drive_file_allowed('PDF_POST_abcdef123')$$), 0);
 
--- ===== Envios privados =====
+-- ===== Envios privados (migração 0019: o envio é criado só pelo servidor, com a service_role) =====
 select t.as_user(:M1::uuid);
-select t.permitido('M1 envia vídeo', $$insert into public.comunidade_envios(espaco_id,aluno_id,video_provider,video_ref,duracao_s,tamanho_bytes,mensagem) select esp,auth.uid(),'drive','VID_M1_abcdef',90,50000000,'Segue meu solo' from ctx$$);
-select t.bloqueado('M1 não envia em nome de M2', $$insert into public.comunidade_envios(espaco_id,aluno_id,video_provider,video_ref) select esp,'20000000-0000-0000-0000-0000000000a2','drive','VID_FAKE_abcdef' from ctx$$);
-select t.bloqueado('M1 não se envia como "respondido"', $$insert into public.comunidade_envios(espaco_id,aluno_id,video_provider,video_ref,status) select esp,auth.uid(),'drive','VID_X_abcdef','respondido' from ctx$$);
-select t.bloqueado('M1 não marca "guardar"', $$insert into public.comunidade_envios(espaco_id,aluno_id,video_provider,video_ref,guardar) select esp,auth.uid(),'drive','VID_Y_abcdef',true from ctx$$);
-select t.bloqueado('arquivo acima de 150 MB é recusado', $$insert into public.comunidade_envios(espaco_id,aluno_id,video_provider,video_ref,tamanho_bytes) select esp,auth.uid(),'drive','VID_Z_abcdef',200000000 from ctx$$);
-select t.bloqueado('vídeo acima de 10 minutos é recusado', $$insert into public.comunidade_envios(espaco_id,aluno_id,video_provider,video_ref,duracao_s) select esp,auth.uid(),'drive','VID_W_abcdef',700 from ctx$$);
+select t.bloqueado('M1 não grava envio direto na tabela', $$insert into public.comunidade_envios(espaco_id,aluno_id,video_provider,video_ref) select esp,auth.uid(),'bunny','VID_M1_abcdef' from ctx$$);
+select t.bloqueado('M1 não grava envio em nome de M2', $$insert into public.comunidade_envios(espaco_id,aluno_id,video_provider,video_ref) select esp,'20000000-0000-0000-0000-0000000000a2','bunny','VID_FAKE_abcdef' from ctx$$);
+select t.as_user(:ADM::uuid, true);
+select t.bloqueado('nem o admin grava envio direto na tabela', $$insert into public.comunidade_envios(espaco_id,aluno_id,video_provider,video_ref) select esp,auth.uid(),'bunny','VID_ADM_abcdef' from ctx$$);
+reset role;
+-- o servidor (service_role/postgres) cria o envio do M1
+insert into public.comunidade_envios(espaco_id,aluno_id,video_provider,video_ref,duracao_s,tamanho_bytes,mensagem,upload_ok)
+  select esp,'20000000-0000-0000-0000-0000000000a1','bunny','VID_M1_abcdef',90,50000000,'Segue meu solo',true from ctx;
+select t.bloqueado('arquivo acima de 150 MB é recusado', $$insert into public.comunidade_envios(espaco_id,aluno_id,video_provider,video_ref,tamanho_bytes) select esp,'20000000-0000-0000-0000-0000000000a1','bunny','VID_Z_abcdef',200000000 from ctx$$);
+select t.bloqueado('vídeo acima de 10 minutos é recusado', $$insert into public.comunidade_envios(espaco_id,aluno_id,video_provider,video_ref,duracao_s) select esp,'20000000-0000-0000-0000-0000000000a1','bunny','VID_W_abcdef',700 from ctx$$);
+select t.as_user(:M1::uuid);
 select t.eq('M1 vê o próprio envio', t.n('select 1 from public.comunidade_envios'), 1);
+select t.bloqueado('M1 não apaga o próprio envio direto (só pela função, que limpa o Bunny)', $$delete from public.comunidade_envios$$);
+select t.bloqueado('M1 não altera o próprio envio', $$update public.comunidade_envios set guardar=true$$);
 select t.as_user(:M2::uuid);
 select t.eq('M2 NÃO vê o envio do M1', t.n('select 1 from public.comunidade_envios'), 0);
 select t.bloqueado('M2 não apaga o envio do M1', $$delete from public.comunidade_envios$$);
 select t.bloqueado('M2 não altera o envio do M1', $$update public.comunidade_envios set status='respondido'$$);
 select t.as_user(:X::uuid);
 select t.eq('X não vê envios', t.n('select 1 from public.comunidade_envios'), 0);
-select t.bloqueado('X não envia vídeo', $$insert into public.comunidade_envios(espaco_id,aluno_id,video_provider,video_ref) select esp,auth.uid(),'drive','VID_X1_abcdef' from ctx$$);
+select t.bloqueado('X não envia vídeo', $$insert into public.comunidade_envios(espaco_id,aluno_id,video_provider,video_ref) select esp,auth.uid(),'bunny','VID_X1_abcdef' from ctx$$);
 select t.as_user(:ADM::uuid, true);
 select t.eq('admin vê todos os envios', t.n('select 1 from public.comunidade_envios'), 1);
+select t.bloqueado('admin também não apaga direto na tabela', $$delete from public.comunidade_envios$$);
 
 -- ===== Respostas =====
 select t.permitido('admin responde', $$insert into public.comunidade_respostas(envio_id,autor_id,texto) select id,auth.uid(),'Ótimo! Atenção ao compasso 5.' from public.comunidade_envios$$);
