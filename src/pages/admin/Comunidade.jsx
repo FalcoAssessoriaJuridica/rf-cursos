@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { driveId } from '../../lib/media';
 import { cn } from '../../lib/utils';
 import EnvioPlayer from '../../components/EnvioPlayer';
-import { apagarEnvio, duracaoLegivel, tamanhoLegivel } from '../../lib/comunidadeVideo';
+import { apagarEnvio, avisarResposta, duracaoLegivel, tamanhoLegivel } from '../../lib/comunidadeVideo';
 
 const ABAS = [
     { id: 'mural', label: 'Mural' },
@@ -208,6 +208,7 @@ function Espacos({ comunidade, espacos, posts, envios, recarregar }) {
 function CartaoEnvio({ envio, espaco, aluno, respostas, userId, recarregar }) {
     const [texto, setTexto] = useState('');
     const [apagando, setApagando] = useState(false);
+    const [emailMsg, setEmailMsg] = useState(null);
     const { busy, msg, rodar } = useAcao(recarregar);
     const respondido = envio.status === 'respondido';
 
@@ -218,8 +219,12 @@ function CartaoEnvio({ envio, espaco, aluno, respostas, userId, recarregar }) {
             const r = await supabase.from('comunidade_respostas').insert({ envio_id: envio.id, autor_id: userId, texto: texto.trim() });
             if (r.error) return r;
             return supabase.from('comunidade_envios').update({ status: 'respondido' }).eq('id', envio.id);
-        }, 'Resposta enviada.');
-        if (ok) setTexto('');
+        }, 'Resposta salva.');
+        if (ok) {
+            setTexto('');
+            // O aluno recebe um aviso por e-mail; se o e-mail falhar, a resposta já está salva e aparece no app dele.
+            avisarResposta(envio.id).then((saiu) => setEmailMsg(saiu ? { ok: true, text: 'Aluno avisado por e-mail.' } : { ok: false, text: 'Resposta salva, mas o e-mail de aviso não saiu.' })).catch(() => setEmailMsg({ ok: false, text: 'Resposta salva, mas o e-mail de aviso não saiu.' }));
+        }
     };
     const apagar = async () => {
         if (!confirm(`Apagar o vídeo de ${aluno?.nome || 'aluno'}? O arquivo é removido e não dá para desfazer.`)) return;
@@ -235,6 +240,7 @@ function CartaoEnvio({ envio, espaco, aluno, respostas, userId, recarregar }) {
                     <p className="mt-1 text-xs text-text-muted">
                         {espaco?.nome ?? '—'} · {data(envio.criado_em)} · {envio.duracao_s ? duracaoLegivel(envio.duracao_s) : '—'} · {envio.tamanho_bytes ? tamanhoLegivel(envio.tamanho_bytes) : '—'}
                         {envio.guardar ? ' · guardado' : ` · expira em ${data(envio.expira_em)}`}
+                        {envio.visibilidade === 'comunidade' ? ' · compartilhado com a comunidade' : ' · só você vê'}
                     </p>
                 </div>
                 <span className={cn('rounded-full border px-3 py-1 text-xs font-semibold', respondido ? 'border-green-600/40 text-green-600' : 'border-primary/50 text-primary')}>
@@ -281,6 +287,7 @@ function CartaoEnvio({ envio, espaco, aluno, respostas, userId, recarregar }) {
                         {apagando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Apagar
                     </button>
                     <Aviso msg={msg} />
+                    <Aviso msg={emailMsg} />
                 </div>
             </form>
         </article>
@@ -430,7 +437,7 @@ export default function Comunidade() {
         const ids = esp.data.map((e) => e.id);
         const [po, en] = await Promise.all([
             ids.length ? supabase.from('comunidade_posts').select('id, espaco_id, titulo, texto, video_ref, pdf_ref, criado_em').in('espaco_id', ids).order('criado_em', { ascending: false }) : { data: [] },
-            ids.length ? supabase.from('comunidade_envios').select('id, espaco_id, aluno_id, mensagem, status, upload_ok, guardar, duracao_s, tamanho_bytes, criado_em, expira_em').in('espaco_id', ids).order('criado_em', { ascending: false }) : { data: [] },
+            ids.length ? supabase.from('comunidade_envios').select('id, espaco_id, aluno_id, mensagem, status, upload_ok, guardar, visibilidade, duracao_s, tamanho_bytes, criado_em, expira_em').in('espaco_id', ids).order('criado_em', { ascending: false }) : { data: [] },
         ]);
         if (po.error || en.error) { setErro((po.error || en.error).message); return; }
         const idsPessoas = [...new Set([...mem.data.map((m) => m.user_id), ...(en.data ?? []).map((e) => e.aluno_id)])];

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { CheckCircle2, Clock, FileText, Loader2, LogIn, MessageSquareText, Minimize2, Play, Trash2, Upload } from 'lucide-react';
+import { CheckCircle2, Clock, FileText, Globe, Loader2, Lock, LogIn, MessageSquareText, Minimize2, Play, Trash2, Upload } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { driveFetch, driveProxyUrl } from '../../lib/driveProxy';
 import { cn } from '../../lib/utils';
@@ -164,10 +164,16 @@ const SELETOR_ESPACO = 'flex flex-wrap gap-2';
 const pilula = (ativo) => cn('h-10 rounded-full border px-4 text-sm font-semibold transition-colors',
     ativo ? 'border-primary bg-primary text-black' : 'border-white/10 text-text-muted hover:border-primary/50 hover:text-text');
 
+const OPCOES_VISIBILIDADE = [
+    { valor: 'professor', icone: Lock, titulo: 'Só o professor', texto: 'Só você e o professor assistem. É a opção segura para dúvidas e treinos.' },
+    { valor: 'comunidade', icone: Globe, titulo: 'Toda a comunidade', texto: 'Os outros membros também assistem, com o seu primeiro nome. O recado e as respostas do professor continuam só seus.' },
+];
+
 function NovoEnvio({ espacos, onEnviado }) {
     const [espacoId, setEspacoId] = useState(espacos[0]?.id ?? null);
     const [arquivo, setArquivo] = useState(null);     // { file, duracao }
     const [mensagem, setMensagem] = useState('');
+    const [visibilidade, setVisibilidade] = useState('professor');
     const [progresso, setProgresso] = useState(null);  // null = parado; 0..100 enviando; 100 = conferindo
     const [erro, setErro] = useState('');
     const [ok, setOk] = useState('');
@@ -195,8 +201,8 @@ function NovoEnvio({ espacos, onEnviado }) {
         if (!arquivo || !espacoId || enviando) return;
         setErro(''); setOk(''); setProgresso(0);
         try {
-            await enviarVideo(arquivo.file, { espacoId, mensagem, onProgresso: setProgresso });
-            setArquivo(null); setMensagem('');
+            await enviarVideo(arquivo.file, { espacoId, mensagem, visibilidade, onProgresso: setProgresso });
+            setArquivo(null); setMensagem(''); setVisibilidade('professor');
             setOk('Vídeo enviado. O professor vai assistir e responder por aqui.');
             await onEnviado();
         } catch (e) {
@@ -236,6 +242,22 @@ function NovoEnvio({ espacos, onEnviado }) {
                 </div>
             </div>
 
+            <fieldset className="space-y-2" disabled={enviando}>
+                <legend className="text-sm font-semibold">Quem pode ver este vídeo</legend>
+                <div className="grid gap-3 sm:grid-cols-2">
+                    {OPCOES_VISIBILIDADE.map((o) => (
+                        <label key={o.valor} className={cn('flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary',
+                            visibilidade === o.valor ? 'border-primary bg-primary/10' : 'border-white/10 hover:border-primary/50')}>
+                            <input type="radio" name="visibilidade" value={o.valor} checked={visibilidade === o.valor} onChange={() => setVisibilidade(o.valor)} className="mt-1 accent-[rgb(var(--c-primary))]" />
+                            <span>
+                                <span className="flex items-center gap-2 text-sm font-semibold"><o.icone className="h-4 w-4" /> {o.titulo}</span>
+                                <span className="mt-1 block text-xs text-text-muted">{o.texto}</span>
+                            </span>
+                        </label>
+                    ))}
+                </div>
+            </fieldset>
+
             <label className="block space-y-2">
                 <span className="text-sm font-semibold">Recado para o professor <span className="font-normal text-text-muted">(opcional)</span></span>
                 <textarea className="input-field min-h-20 w-full py-3" value={mensagem} onChange={(e) => setMensagem(e.target.value)} maxLength={1000} disabled={enviando}
@@ -262,7 +284,15 @@ function NovoEnvio({ espacos, onEnviado }) {
 
 function CartaoEnvio({ envio, espaco, respostas, onApagado }) {
     const [apagando, setApagando] = useState(false);
+    const [trocando, setTrocando] = useState(false);
     const [erro, setErro] = useState('');
+    const compartilhado = envio.visibilidade === 'comunidade';
+    const trocarVisibilidade = async () => {
+        setTrocando(true); setErro('');
+        const { error } = await supabase.rpc('comunidade_envio_visibilidade', { p_envio: envio.id, p_valor: compartilhado ? 'professor' : 'comunidade' });
+        if (error) setErro('Não foi possível mudar agora. Tente de novo.'); else await onApagado();
+        setTrocando(false);
+    };
     const apagar = async () => {
         if (!confirm('Apagar este vídeo? Ele some para você e para o professor e não dá para desfazer.')) return;
         setApagando(true); setErro('');
@@ -275,7 +305,7 @@ function CartaoEnvio({ envio, espaco, respostas, onApagado }) {
             <header className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                     <h3 className="text-lg font-bold leading-tight">{espaco?.nome ?? 'Envio'}</h3>
-                    <p className="mt-1 text-xs text-text-muted">Enviado em {data(envio.criado_em)}{!envio.guardar && envio.expira_em ? ` · disponível até ${data(envio.expira_em)}` : ''}</p>
+                    <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted"><span>Enviado em {data(envio.criado_em)}{!envio.guardar && envio.expira_em ? ` · disponível até ${data(envio.expira_em)}` : ''}</span><span className="flex items-center gap-1 font-semibold">{compartilhado ? <><Globe className="h-3.5 w-3.5" /> Toda a comunidade vê</> : <><Lock className="h-3.5 w-3.5" /> Só o professor vê</>}</span></p>
                 </div>
                 <span className={cn('flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold',
                     incompleto ? 'border-red-500/40 text-red-500' : respondido ? 'border-green-600/40 text-green-600' : 'border-white/15 text-text-muted')}>
@@ -301,6 +331,13 @@ function CartaoEnvio({ envio, espaco, respostas, onApagado }) {
             )}
 
             <div className="flex flex-wrap items-center gap-3">
+                {!incompleto && (
+                    <button type="button" onClick={trocarVisibilidade} disabled={trocando} aria-pressed={compartilhado}
+                        className="flex h-11 items-center gap-2 rounded-xl border border-white/10 px-4 text-sm transition-colors hover:border-primary/50 disabled:opacity-40">
+                        {trocando ? <Loader2 className="h-4 w-4 animate-spin" /> : compartilhado ? <Lock className="h-4 w-4" /> : <Globe className="h-4 w-4" />}
+                        {compartilhado ? 'Deixar só para o professor' : 'Compartilhar com a comunidade'}
+                    </button>
+                )}
                 <button type="button" onClick={apagar} disabled={apagando}
                     className="flex h-11 items-center gap-2 rounded-xl border border-white/10 px-4 text-sm text-text-muted transition-colors hover:border-red-500/50 hover:text-red-500 disabled:opacity-40">
                     {apagando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Apagar vídeo
@@ -319,7 +356,7 @@ function MeusEnvios({ espacos }) {
     const carregar = useCallback(async () => {
         const { data: { user } } = await supabase.auth.getUser();
         const en = await supabase.from('comunidade_envios')
-            .select('id, espaco_id, mensagem, status, upload_ok, guardar, criado_em, expira_em').eq('aluno_id', user.id).order('criado_em', { ascending: false });
+            .select('id, espaco_id, mensagem, status, upload_ok, guardar, visibilidade, criado_em, expira_em').eq('aluno_id', user.id).order('criado_em', { ascending: false });
         if (en.error) { setErro(en.error.message); setEnvios([]); return; }
         const ids = en.data.map((e) => e.id);
         const re = ids.length ? await supabase.from('comunidade_respostas').select('id, envio_id, texto, criado_em').in('envio_id', ids).order('criado_em') : { data: [] };
@@ -349,6 +386,52 @@ function MeusEnvios({ espacos }) {
                     {envios?.map((e) => <CartaoEnvio key={e.id} envio={e} espaco={espacos.find((x) => x.id === e.espaco_id)} respostas={respostas[e.id] ?? []} onApagado={carregar} />)}
                 </div>
             </section>
+        </div>
+    );
+}
+
+function VideosDaComunidade({ espacos }) {
+    const [espacoId, setEspacoId] = useState(espacos[0]?.id ?? null);
+    const [videos, setVideos] = useState(null);   // null = carregando
+    const [erro, setErro] = useState('');
+
+    useEffect(() => {
+        if (!espacoId) return undefined;
+        let ativo = true;
+        setVideos(null); setErro('');
+        supabase.rpc('comunidade_videos_compartilhados', { p_espaco: espacoId }).then(({ data: lista, error }) => {
+            if (!ativo) return;
+            if (error) { setErro('Não foi possível carregar os vídeos agora.'); setVideos([]); } else setVideos(lista ?? []);
+        });
+        return () => { ativo = false; };
+    }, [espacoId]);
+
+    if (espacos.length === 0) return <p className="text-sm text-text-muted">O professor ainda não criou nenhum espaço. Volte em breve.</p>;
+    return (
+        <div className="space-y-6">
+            <p className="max-w-[65ch] text-sm text-text-muted">Vídeos que os próprios participantes escolheram compartilhar com a comunidade. Para o seu aparecer aqui, abra "Meus envios" e escolha "Compartilhar com a comunidade".</p>
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Instrumento">
+                {espacos.map((e) => <button key={e.id} type="button" onClick={() => setEspacoId(e.id)} aria-pressed={espacoId === e.id} className={pilula(espacoId === e.id)}>{e.nome}</button>)}
+            </div>
+            {erro && <p role="alert" className="text-sm font-semibold text-red-500">{erro}</p>}
+            {videos === null && <div className="h-40 animate-pulse rounded-[2rem] bg-white/5" aria-busy="true" />}
+            {videos?.length === 0 && !erro && (
+                <div className="flex max-w-md items-start gap-3 rounded-2xl border border-white/10 p-5 text-sm text-text-muted">
+                    <Globe className="mt-0.5 h-5 w-5 shrink-0" />
+                    <p>Ninguém compartilhou um vídeo neste instrumento ainda.</p>
+                </div>
+            )}
+            <div className="grid gap-6 lg:max-w-3xl">
+                {videos?.map((v) => (
+                    <article key={v.id} className="space-y-4 rounded-[2rem] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-5 shadow-[var(--glass-relief),var(--glass-drop)] md:p-6">
+                        <header>
+                            <h3 className="text-lg font-bold leading-tight">{v.meu ? 'Seu vídeo' : v.autor}</h3>
+                            <p className="mt-1 text-xs text-text-muted">{data(v.criado_em)}{v.duracao_s ? ` · ${duracaoLegivel(v.duracao_s)}` : ''}</p>
+                        </header>
+                        <EnvioPlayer envioId={v.id} titulo={`Vídeo de ${v.meu ? 'você' : v.autor}`} />
+                    </article>
+                ))}
+            </div>
         </div>
     );
 }
@@ -390,14 +473,14 @@ export default function Comunidade() {
             {estado === 'fora' && <EntrarComCodigo onEntrou={carregar} />}
             {estado === 'dentro' && (
                 <>
-                    <div role="tablist" aria-label="Seções" className="flex gap-2 border-b border-white/10 pb-3">
-                        {[['aulas', 'Aulas'], ['envios', 'Meus envios']].map(([id, rotulo]) => (
+                    <div role="tablist" aria-label="Seções" className="flex flex-wrap gap-2 border-b border-white/10 pb-3">
+                        {[['aulas', 'Aulas'], ['videos', 'Vídeos da comunidade'], ['envios', 'Meus envios']].map(([id, rotulo]) => (
                             <button key={id} role="tab" type="button" aria-selected={aba === id} onClick={() => setAba(id)}
                                 className={cn('h-11 rounded-lg px-4 text-sm font-semibold transition-colors', aba === id ? 'bg-primary text-black' : 'text-text-muted hover:text-text')}>{rotulo}</button>
                         ))}
                     </div>
                     <div role="tabpanel">
-                        {aba === 'aulas' ? <Mural espacos={espacos} posts={posts} /> : <MeusEnvios espacos={espacos} />}
+                        {aba === 'aulas' ? <Mural espacos={espacos} posts={posts} /> : aba === 'videos' ? <VideosDaComunidade espacos={espacos} /> : <MeusEnvios espacos={espacos} />}
                     </div>
                 </>
             )}

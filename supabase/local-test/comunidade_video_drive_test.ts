@@ -12,11 +12,16 @@ const PWD = 'SenhaTeste!2026';
 
 const google = iniciarGoogleMock(58977);
 
+// Resend de mentira: guarda os e-mails que a função tentou enviar.
+const emails: { auth: string | null; body: { from: string; to: string[]; subject: string; html: string; text: string } }[] = [];
+const resend = Deno.serve({ port: 58976, onListen() {} }, async (req) => { emails.push({ auth: req.headers.get('Authorization'), body: await req.json() }); return Response.json({ id: 'email-teste' }); });
+
 const fn = new Deno.Command('deno', {
   args: ['run', '-A', decodeURIComponent(new URL('../functions/comunidade-video/index.ts', import.meta.url).pathname)],
   env: {
     DENO_SERVE_ADDRESS: 'tcp:127.0.0.1:58998', SUPABASE_URL: API, SUPABASE_ANON_KEY: ANON, SUPABASE_SERVICE_ROLE_KEY: SERVICE,
     ALLOWED_ORIGIN: ORIGEM, GOOGLE_CLIENT_ID: 'cliente-teste', GOOGLE_CLIENT_SECRET: 'segredo-teste', GOOGLE_REFRESH_TOKEN: GOOGLE_MOCK.refresh,
+    RESEND_API_KEY: 'chave-resend-teste', RESEND_API_URL: 'http://127.0.0.1:58976/emails', COMUNIDADE_MAC_EMAIL_PROFESSOR: 'professor@teste.local', APP_URL: 'https://app.teste',
     GOOGLE_API_URL: google.base, GOOGLE_TOKEN_URL: `${google.base}/token`,
   },
   stdout: 'null', stderr: Deno.env.get('DEBUG_FN') ? 'inherit' : 'null',
@@ -120,6 +125,36 @@ try {
   check('quem não é membro NÃO assiste', (await chamar(intruso.jwt, { action: 'reproduzir', envio_id: c.body.envio_id })).status === 404);
   check('Bruno não apaga o envio da Ana', (await chamar(bruno.jwt, { action: 'apagar', envio_id: c.body.envio_id })).status === 404 && google.arquivos.has(enviado.id));
 
+
+  // ── visibilidade: só o professor (padrão) ou toda a comunidade ──
+  const rpc = (jwt: string, fn: string, args: unknown) => fetch(`${API}/rest/v1/rpc/${fn}`, { method: 'POST', headers: { apikey: ANON, Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' }, body: JSON.stringify(args) });
+  check('visibilidade inválida na criação é recusada', (await chamar(ana.jwt, { ...valido, visibilidade: 'todos' })).status === 400);
+  check('o envio nasce privado (só o professor)', (await sql(`select visibilidade from public.comunidade_envios where id='${c.body.envio_id}'`)) === 'professor');
+  check('Ana compartilha o vídeo com a comunidade', (await rpc(ana.jwt, 'comunidade_envio_visibilidade', { p_envio: c.body.envio_id, p_valor: 'comunidade' })).status === 204);
+  check('agora Bruno (membro) assiste ao vídeo da Ana', (await chamar(bruno.jwt, { action: 'reproduzir', envio_id: c.body.envio_id })).status === 200);
+  check('quem não é membro continua sem assistir', (await chamar(intruso.jwt, { action: 'reproduzir', envio_id: c.body.envio_id })).status === 404);
+  check('compartilhar não dá a Bruno o direito de apagar', (await chamar(bruno.jwt, { action: 'apagar', envio_id: c.body.envio_id })).status === 404 && google.arquivos.has(enviado.id));
+  const lista = await (await rpc(bruno.jwt, 'comunidade_videos_compartilhados', { p_espaco: espaco })).json();
+  check('a lista da comunidade traz o vídeo, sem recado nem e-mail', lista.length === 1 && !('mensagem' in lista[0]) && !JSON.stringify(lista).includes('@'), JSON.stringify(lista));
+  check('Bruno não consegue mudar a visibilidade do vídeo da Ana', (await rpc(bruno.jwt, 'comunidade_envio_visibilidade', { p_envio: c.body.envio_id, p_valor: 'professor' })).status >= 400);
+  check('Ana volta o vídeo para só o professor', (await rpc(ana.jwt, 'comunidade_envio_visibilidade', { p_envio: c.body.envio_id, p_valor: 'professor' })).status === 204);
+  check('Bruno deixa de assistir', (await chamar(bruno.jwt, { action: 'reproduzir', envio_id: c.body.envio_id })).status === 404);
+
+  // ── avisos por e-mail (fase 5) ──
+  check('o professor recebeu 1 e-mail quando o envio da Ana chegou', emails.length === 1 && emails[0].body.to.join() === 'professor@teste.local', JSON.stringify(emails.map((e) => e.body.to)));
+  check('o e-mail usa a chave do Resend e o remetente do domínio', emails[0].auth === 'Bearer chave-resend-teste' && emails[0].body.from.includes('@falcotech.com.br'));
+  check('o e-mail traz o recado e o link do painel', emails[0].body.text.includes('Segue meu solo') && emails[0].body.html.includes('https://app.teste/admin/comunidade'));
+  check('o e-mail não leva link do vídeo', !/drive\.google|mac-envio|\?s=/.test(emails[0].body.html + emails[0].body.text));
+  check('sem ser professor, não dá para disparar aviso de resposta', (await chamar(ana.jwt, { action: 'avisar_resposta', envio_id: c.body.envio_id })).status === 403);
+  check('aviso sem resposta existente é recusado', (await chamar(prof.jwt, { action: 'avisar_resposta', envio_id: c.body.envio_id })).status === 409);
+  await sql(`insert into public.comunidade_respostas(envio_id, autor_id, texto) values ('${c.body.envio_id}', '${prof.id}', 'Ótimo! <script>alert(1)</script> Atenção ao compasso 5.')`);
+  const av = await chamar(prof.jwt, { action: 'avisar_resposta', envio_id: c.body.envio_id });
+  check('o professor avisa o aluno da resposta', av.status === 200 && av.body.enviado === true, JSON.stringify(av.body));
+  const ult = emails[emails.length - 1];
+  check('o aviso vai para o e-mail da Ana, e só para ela', ult?.body.to.length === 1 && ult.body.to[0].startsWith(`ana${stamp}@`), JSON.stringify(ult?.body.to));
+  check('o texto da resposta no e-mail está protegido contra HTML', !!ult && !ult.body.html.includes('<script>') && ult.body.html.includes('&lt;script&gt;'));
+  check('o aviso leva ao app do aluno', !!ult && ult.body.html.includes('https://app.teste/student/comunidade'));
+
   // ── arquivo maior que o declarado ──
   const c2 = await chamar(bruno.jwt, valido);
   const p2 = await (await subir(c2.body.upload.url, conteudo)).json();
@@ -151,7 +186,7 @@ try {
   })());
 } finally {
   try { fn.kill(); } catch { /* já terminou */ }
-  await google.close();
+  await google.close(); await resend.shutdown();
 }
 console.log(`\n→ ${ok} ok, ${falhas} falhas`);
 Deno.exit(falhas === 0 ? 0 : 1);

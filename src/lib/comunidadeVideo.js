@@ -58,10 +58,10 @@ export async function validarArquivo(arquivo) {
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Envia o vídeo do aluno. `onProgresso(0..100)`. Devolve o id do envio.
-export async function enviarVideo(arquivo, { espacoId, mensagem, onProgresso }) {
+export async function enviarVideo(arquivo, { espacoId, mensagem, visibilidade = 'professor', onProgresso }) {
     const { duracao, tipo } = await validarArquivo(arquivo);
     const { envio_id: envioId, provider, upload } = await chamar('criar', {
-        espaco_id: espacoId, mensagem: mensagem?.trim() || null, duracao_s: duracao, tamanho_bytes: arquivo.size, tipo,
+        espaco_id: espacoId, mensagem: mensagem?.trim() || null, duracao_s: duracao, tamanho_bytes: arquivo.size, tipo, visibilidade,
     });
 
     let fileId;
@@ -122,3 +122,5 @@ export const urlDoEnvio = async (envioId) => {
     return r.tipo === 'video' ? { tipo: 'video', url: `${FUNC_URL}?s=${encodeURIComponent(r.token)}` } : { tipo: 'iframe', url: r.url };
 };
 export const apagarEnvio = (envioId) => chamar('apagar', { envio_id: envioId });
+// Professor: depois de gravar a resposta, avisa o aluno por e-mail. Devolve true se o e-mail saiu.
+export const avisarResposta = async (envioId) => (await chamar('avisar_resposta', { envio_id: envioId })).enviado === true;

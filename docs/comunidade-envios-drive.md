@@ -8,7 +8,7 @@ Custo: **zero**. Usa o Google Cloud sem cobrança (a API do Drive é gratuita) e
 
 ## O que fazer uma vez (cerca de 15 minutos, só você pode fazer)
 
-1. **Banco (Supabase, SQL Editor):** rode `supabase/migrations/0019_comunidade_envios.sql`.
+1. **Banco (Supabase, SQL Editor):** rode `supabase/migrations/0019_comunidade_envios.sql` e, depois, `0020_comunidade_visibilidade.sql`.
 2. **Google Cloud:** em https://console.cloud.google.com crie um projeto (ex.: "RF Cursos"). Não precisa ligar cobrança.
 3. **Ative a API:** *APIs e serviços > Biblioteca > Google Drive API > Ativar*.
 4. **Tela de consentimento OAuth:** *APIs e serviços > Tela de permissão OAuth*. Tipo de usuário **Externo**; nome do app e seu e-mail. Em
@@ -25,19 +25,47 @@ Custo: **zero**. Usa o Google Cloud sem cobrança (a API do Drive é gratuita) e
 8. **Publicar a função** (Terminal do Mac, na pasta do projeto):
 
    ```bash
-   supabase functions deploy comunidade-video --no-verify-jwt
+   supabase functions deploy comunidade-video --no-verify-jwt --project-ref bghvzdfikfhceekoxtxg
    ```
+   Se der erro 403, o `supabase login` está numa conta que não é dona do projeto: rode `supabase login` de novo com a conta certa e confira com
+   `supabase projects list`. Alternativa sem terminal: Edge Functions > Deploy a new function > Via Editor, colar `index.ts`, `bunny.ts` e `drive.ts`
+   e desligar "Verify JWT".
 9. Publicar o app no Easypanel, como de costume.
 
 A pasta "Comunidade MAC - envios" é criada sozinha no primeiro envio, na conta escolhida no passo 6.
 
+## Quem pode ver cada vídeo
+
+Ao enviar, o aluno escolhe: **"Só o professor"** (padrão) ou **"Toda a comunidade"**. Pode mudar depois, em "Meus envios". Vídeo compartilhado aparece
+na aba "Vídeos da comunidade" com o primeiro nome e a inicial do sobrenome do autor ("Marina T."). O recado ao professor, as respostas e o e-mail
+do aluno **nunca** aparecem para os outros membros. A regra está no banco (migração `0020_comunidade_visibilidade.sql`), não só na tela.
+O link de reprodução vale por 4 horas; se o aluno voltar o vídeo para "só o professor", quem já abriu o player ainda assiste até esse link vencer.
+
+## Avisos por e-mail (fase 5)
+
+- Ao **professor**, quando um aluno termina de enviar um vídeo (com o recado e o link da caixa de entrada).
+- Ao **aluno**, quando o professor responde (com o texto da resposta e o link do app).
+Os e-mails saem pela API do Resend, com o remetente `nao-responda@falcotech.com.br` (domínio já verificado). Se o e-mail falhar, o envio e a resposta
+continuam funcionando; o painel do professor mostra um aviso quando o e-mail do aluno não saiu.
+
+Segredos a criar no Supabase (Edge Functions > Secrets), você digita:
+- `RESEND_API_KEY`: no Resend, API Keys > Create API key, nome `RF Cursos (Comunidade)`, permissão **Sending access**, domínio `falcotech.com.br`. Chave própria
+  (não reutilize a do SMTP do Supabase), para poder revogar sem afetar o resto.
+- `COMUNIDADE_MAC_EMAIL_PROFESSOR`: o e-mail que recebe os avisos (vários, separados por vírgula).
+Opcionais: `EMAIL_FROM` (padrão `RF Music Academy <nao-responda@falcotech.com.br>`) e `APP_URL` (padrão `https://rfcursos.falcotech.com.br`).
+O limite gratuito do Resend (100 e-mails por dia) é da conta inteira, dividido com os outros projetos.
+
 ## Limites do plano gratuito (vale saber)
 
-- **Espaço do Drive:** 15 GB por conta Google. Com 40 alunos e 2 vídeos por mês de até 150 MB, o pior caso é 12 GB por mês; o normal (vídeos de
+- **Espaço do Drive:** depende da conta escolhida (uma conta gratuita tem 15 GB; a do Roberto, em produção, tem 10 TB, então não é um limite na prática). Com 40 alunos e 2 vídeos por mês de até 150 MB, o pior caso é 12 GB por mês; o normal (vídeos de
   30 a 60 MB) fica em 3 a 5 GB por mês. Os envios expiram em 90 dias; a rotina que apaga os vencidos é a fase 6. Até ela existir, apague pela
   aba Envios o que já foi respondido.
-- **Banda do Supabase:** cada vez que alguém assiste um envio, o vídeo passa pela função. O plano gratuito do Supabase inclui 5 GB de banda
-  por mês; o Pro inclui 250 GB. Para o uso previsto (o professor assiste cada vídeo uma ou duas vezes) cabe no gratuito, mas monitore.
+- **Banda do Supabase:** o **envio** não passa pelo Supabase (vai direto do celular para o Google). Já **assistir** passa: o Drive não entrega arquivo privado
+  direto ao navegador, então a função busca no Google e repassa. Estimativa: 40 alunos x 2 vídeos x 50 MB, vistos 1 a 2 vezes pelo professor = 4 a 8 GB por mês.
+  Vídeos compartilhados com a comunidade multiplicam isso pelo número de visualizações. Para sair do Supabase seria preciso trocar o armazenamento
+  (Bunny, pago, ou Cloudflare R2, que cobra zero de saída mas exige cartão cadastrado). A função já separa o armazenamento do resto, então a troca não refaz o app.
+  O plano gratuito do Supabase inclui 5 GB de banda por mês; o Pro inclui 250 GB. Só com o professor assistindo cabe no gratuito, no limite; com vídeos
+  compartilhados e muita gente assistindo, o plano Pro é o que dá folga. Monitore em Settings > Usage do Supabase.
 
 ## Trocar para o Bunny Stream no futuro (opcional, pago)
 
@@ -54,3 +82,4 @@ supabase/local-test/matriz.sh rls_comunidade.sql
 deno run -A supabase/local-test/comunidade_video_drive_test.ts
 deno run -A supabase/local-test/comunidade_video_bunny_test.ts
 ```
+(Aplicar também a `0020_comunidade_visibilidade.sql` antes de rodar os testes.)

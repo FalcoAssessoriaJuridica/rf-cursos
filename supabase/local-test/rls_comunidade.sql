@@ -1,4 +1,4 @@
--- Matriz de RLS da Comunidade MAC (migrações 0017 a 0019). Rodar depois de run.sh base + 0009, 0017, 0018 e 0019:  ./matriz.sh rls_comunidade.sql
+-- Matriz de RLS da Comunidade MAC (migrações 0017 a 0020). Rodar depois de run.sh base + 0009, 0017, 0018, 0019 e 0020:  ./matriz.sh rls_comunidade.sql
 drop schema if exists t cascade;
 create schema t;
 grant usage on schema t to anon, authenticated;
@@ -142,7 +142,38 @@ select t.as_user(:ADM::uuid, true);
 select t.eq('admin vê todos os envios', t.n('select 1 from public.comunidade_envios'), 1);
 select t.bloqueado('admin também não apaga direto na tabela', $$delete from public.comunidade_envios$$);
 
+-- ===== Compartilhar o vídeo com a comunidade (migração 0020) =====
+reset role;
+create temp table ev as select id from public.comunidade_envios limit 1;
+grant select on ev to authenticated, anon;
+select t.as_user(:M2::uuid);
+select t.eq('por padrão, M2 não vê vídeos compartilhados', t.n($$select 1 from public.comunidade_videos_compartilhados((select esp from ctx))$$), 0);
+select t.eq('M2 não pode assistir ao vídeo privado do M1', t.n($$select 1 where public.comunidade_envio_pode_ver((select id from ev))$$), 0);
+select t.bloqueado('M2 não muda a visibilidade do envio do M1', $$select public.comunidade_envio_visibilidade((select id from ev), 'comunidade')$$);
+select t.as_user(:M1::uuid);
+select t.bloqueado('valor de visibilidade inválido é recusado', $$select public.comunidade_envio_visibilidade((select id from ev), 'todos')$$);
+select t.permitido('M1 compartilha o próprio vídeo com a comunidade', $$select public.comunidade_envio_visibilidade((select id from ev), 'comunidade')$$);
+select t.as_user(:M2::uuid);
+select t.eq('M2 passa a ver o vídeo compartilhado', t.n($$select 1 from public.comunidade_videos_compartilhados((select esp from ctx))$$), 1);
+select t.eq('M2 pode assistir ao vídeo compartilhado', t.n($$select 1 where public.comunidade_envio_pode_ver((select id from ev))$$), 1);
+select t.eq('M2 continua sem ler a linha do envio (o recado é privado)', t.n('select 1 from public.comunidade_envios'), 0);
+select t.eq('M2 não lê respostas do professor do envio compartilhado', t.n('select 1 from public.comunidade_respostas'), 0);
+select t.bloqueado('M2 continua sem alterar o envio do M1', $$select public.comunidade_envio_visibilidade((select id from ev), 'professor')$$);
+select t.as_user(:X::uuid);
+select t.eq('quem não é membro não vê vídeos compartilhados', t.n($$select 1 from public.comunidade_videos_compartilhados((select esp from ctx))$$), 0);
+select t.eq('quem não é membro não pode assistir', t.n($$select 1 where public.comunidade_envio_pode_ver((select id from ev))$$), 0);
+select t.as_anon();
+select t.bloqueado('anon não chama a lista de compartilhados', $$select * from public.comunidade_videos_compartilhados((select esp from ctx))$$);
+select t.as_user(:ADM::uuid, true);
+select t.eq('o professor pode assistir', t.n($$select 1 where public.comunidade_envio_pode_ver((select id from ev))$$), 1);
+select t.as_user(:M1::uuid);
+select t.permitido('M1 volta o vídeo para "só o professor"', $$select public.comunidade_envio_visibilidade((select id from ev), 'professor')$$);
+select t.as_user(:M2::uuid);
+select t.eq('M2 deixa de ver o vídeo', t.n($$select 1 from public.comunidade_videos_compartilhados((select esp from ctx))$$), 0);
+select t.eq('M2 deixa de poder assistir', t.n($$select 1 where public.comunidade_envio_pode_ver((select id from ev))$$), 0);
+
 -- ===== Respostas =====
+select t.as_user(:ADM::uuid, true);
 select t.permitido('admin responde', $$insert into public.comunidade_respostas(envio_id,autor_id,texto) select id,auth.uid(),'Ótimo! Atenção ao compasso 5.' from public.comunidade_envios$$);
 select t.permitido('admin marca como respondido e guardar', $$update public.comunidade_envios set status='respondido', guardar=true$$);
 select t.as_user(:M1::uuid);

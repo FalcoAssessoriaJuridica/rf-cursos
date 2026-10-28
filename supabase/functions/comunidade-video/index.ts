@@ -8,17 +8,21 @@
 // Segredos (digitados por você, nunca em chat/arquivo):
 //   Drive : GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN   (a pasta "Comunidade MAC - envios" é criada pela própria função)
 //   Bunny : BUNNY_LIBRARY_ID, BUNNY_API_KEY, BUNNY_TOKEN_KEY   (só se um dia escolher o Bunny)
+//   E-mail: RESEND_API_KEY (chave só desta função), COMUNIDADE_MAC_EMAIL_PROFESSOR (e-mail(s) do professor, separados por vírgula),
+//           opcionais: EMAIL_FROM, APP_URL. Sem RESEND_API_KEY os avisos simplesmente não são enviados.
 //   ALLOWED_ORIGIN (o mesmo das outras funções). SUPABASE_URL, SUPABASE_ANON_KEY e SUPABASE_SERVICE_ROLE_KEY o Supabase já injeta.
 // Exige 0017 e 0019 aplicados.
 //
 // POST (JSON, com o login do usuário):
-//   criar      { espaco_id, mensagem?, duracao_s, tamanho_bytes, tipo }  -> registra o envio e prepara o upload direto do aparelho
+//   criar      { espaco_id, mensagem?, duracao_s, tamanho_bytes, tipo, visibilidade? } -> registra o envio ('professor' ou 'comunidade') e prepara o upload
 //   confirmar  { envio_id, file_id? }                                    -> confere que o arquivo chegou e libera o envio ao professor
-//   reproduzir { envio_id }                                              -> como assistir (link do player do Bunny, ou token do player do Drive)
+//   reproduzir { envio_id }                                              -> como assistir (dono, professor, ou membro se o envio for da comunidade)
+//   avisar_resposta { envio_id }                                         -> (só o professor) e-mail ao aluno avisando que há resposta
 //   apagar     { envio_id }                                              -> apaga o arquivo e o envio (dono ou professor)
 // GET ?s=<token>                                                         -> vídeo do Drive (com Range), só com o token assinado
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { apagarVideo, assinaturaUpload, consultarVideo, criarVideo, urlDeReproducao, type BunnyCfg } from './bunny.ts';
+import { emailNovoEnvio, emailResposta, enviarEmail } from './email.ts';
 import { apagarArquivo, baixarArquivo, consultarArquivo, iniciarUpload, pasta, procurarPorNome, type DriveCfg } from './drive.ts';
 
 const MAX_BYTES = 157286400;        // 150 MB (o mesmo limite da tabela)
@@ -119,12 +123,41 @@ Deno.serve(async (req) => {
       const { data } = await asUser.from('comunidade_envios').select('id, aluno_id, video_provider, video_ref, upload_ok').eq('id', id).maybeSingle();
       return data as Envio | null;
     };
+    // Para ASSISTIR: além do dono e do professor, vale o membro ativo quando o aluno compartilhou o vídeo com a comunidade (regra no banco).
+    const envioParaVer = async (): Promise<Envio | null> => {
+      const id = String(corpo.envio_id ?? '');
+      if (!UUID.test(id)) return null;
+      const { data: pode } = await asUser.rpc('comunidade_envio_pode_ver', { p_envio: id });
+      if (pode !== true) return null;
+      const { data } = await admin.from('comunidade_envios').select('id, aluno_id, video_provider, video_ref, upload_ok').eq('id', id).maybeSingle();
+      return data as Envio | null;
+    };
+    const eProfessor = user.app_metadata?.role === 'admin';
+    const appUrl = (env('APP_URL') || 'https://rfcursos.falcotech.com.br').replace(/\/$/, '');
+    const nomeDe = async (uid: string) => ((await admin.from('perfis').select('nome_completo').eq('id', uid).maybeSingle()).data?.nome_completo as string | undefined)?.trim() || 'Um aluno';
     // Remove o arquivo onde ele estiver guardado.
     const removerArquivo = async (e: Envio) => {
       if (e.video_provider === 'bunny') { if (!bunny) throw new Error('Bunny não configurado'); await apagarVideo(bunny, e.video_ref); return; }
       if (!drive) throw new Error('Drive não configurado');
       if (FILE_ID.test(e.video_ref)) { await apagarArquivo(drive, e.video_ref); return; }
       for (const id of await procurarPorNome(drive, `mac-envio-${e.id}`)) await apagarArquivo(drive, id);   // upload que não chegou a ser confirmado
+    };
+
+    // E-mail ao professor quando um envio chega. De melhor esforço: nunca faz a ação falhar.
+    const avisarProfessor = async (envioId: string) => {
+      try {
+        const para = env('COMUNIDADE_MAC_EMAIL_PROFESSOR').split(',').map((x) => x.trim()).filter(Boolean);
+        if (para.length === 0) return;
+        const { data: e } = await admin.from('comunidade_envios').select('aluno_id, espaco_id, mensagem, duracao_s, visibilidade').eq('id', envioId).maybeSingle();
+        if (!e) return;
+        const { data: esp } = await admin.from('comunidade_espacos').select('nome').eq('id', e.espaco_id).maybeSingle();
+        const d = Number(e.duracao_s ?? 0);
+        const m = emailNovoEnvio({
+          aluno: await nomeDe(e.aluno_id), instrumento: esp?.nome ?? 'instrumento', duracao: `${Math.floor(d / 60)}:${String(d % 60).padStart(2, '0')}`,
+          recado: e.mensagem, compartilhado: e.visibilidade === 'comunidade', link: `${appUrl}/admin/comunidade`,
+        });
+        await enviarEmail({ para, ...m });
+      } catch (err) { console.error('comunidade-video aviso professor', (err as Error).message); }
     };
 
     if (acao === 'criar') {
@@ -134,6 +167,8 @@ Deno.serve(async (req) => {
       const tamanho = Number(corpo.tamanho_bytes);
       const tipo = String(corpo.tipo);
       const mensagem = corpo.mensagem == null ? null : String(corpo.mensagem).trim().slice(0, 1000) || null;
+      const visibilidade = corpo.visibilidade == null ? 'professor' : String(corpo.visibilidade);
+      if (!['professor', 'comunidade'].includes(visibilidade)) return erro('Visibilidade inválida.', 400);
       if (!UUID.test(espacoId)) return erro('Espaço inválido.', 400);
       if (!EXTENSAO[tipo]) return erro('Formato não aceito. Envie MP4, MOV ou WebM.', 400);
       if (!Number.isFinite(tamanho) || tamanho < 1 || tamanho > MAX_BYTES) return erro('O vídeo passa de 150 MB.', 400);
@@ -154,7 +189,7 @@ Deno.serve(async (req) => {
       const { count } = await admin.from('comunidade_envios').select('id', { count: 'exact', head: true }).eq('aluno_id', user.id).gte('criado_em', desde);
       if ((count ?? 0) >= MAX_ENVIOS_30D) return erro('Você chegou ao limite de envios do mês. Fale com o professor.', 429);
 
-      const base = { espaco_id: espacoId, aluno_id: user.id, duracao_s: Math.round(duracao), tamanho_bytes: Math.round(tamanho), mensagem };
+      const base = { espaco_id: espacoId, aluno_id: user.id, duracao_s: Math.round(duracao), tamanho_bytes: Math.round(tamanho), mensagem, visibilidade };
 
       if (PROVEDOR === 'bunny') {
         const videoId = await criarVideo(bunny!, `MAC ${user.id.slice(0, 8)} ${new Date().toISOString().slice(0, 10)}`);
@@ -181,6 +216,7 @@ Deno.serve(async (req) => {
         if (!v || v.status < 1 || v.status > 4) return erro('O arquivo ainda não chegou ao servidor.', 409);
         if (v.storageSize > MAX_BYTES) { await apagarVideo(bunny!, envio.video_ref).catch(() => {}); await admin.from('comunidade_envios').delete().eq('id', envio.id); return erro('O vídeo passa de 150 MB e foi descartado.', 413); }
         await admin.from('comunidade_envios').update({ upload_ok: true }).eq('id', envio.id);
+        await avisarProfessor(envio.id);
         return json({ ok: true });
       }
 
@@ -192,11 +228,12 @@ Deno.serve(async (req) => {
       if (!f || !nomeOk) return erro('O arquivo ainda não chegou ao servidor.', 409);
       if (f.size > MAX_BYTES) { await apagarArquivo(drive!, f.id).catch(() => {}); await admin.from('comunidade_envios').delete().eq('id', envio.id); return erro('O vídeo passa de 150 MB e foi descartado.', 413); }
       await admin.from('comunidade_envios').update({ video_ref: f.id, upload_ok: true }).eq('id', envio.id);
+      await avisarProfessor(envio.id);
       return json({ ok: true });
     }
 
     if (acao === 'reproduzir') {
-      const envio = await meuEnvio();
+      const envio = await envioParaVer();
       if (!envio) return erro('Envio não encontrado.', 404);
       const expira = Math.floor(Date.now() / 1000) + REPRODUCAO_VALE_S;
       if (envio.video_provider === 'bunny') {
@@ -205,6 +242,19 @@ Deno.serve(async (req) => {
       }
       if (!FILE_ID.test(envio.video_ref)) return erro('Este envio não terminou.', 409);
       return json({ tipo: 'video', token: await assinarStream(envio.id, expira), expira });
+    }
+
+    if (acao === 'avisar_resposta') {
+      if (!eProfessor) return erro('Só o professor envia este aviso.', 403);
+      const id = String(corpo.envio_id ?? '');
+      if (!UUID.test(id)) return erro('Envio não encontrado.', 404);
+      const { data: e } = await admin.from('comunidade_envios').select('aluno_id').eq('id', id).maybeSingle();
+      if (!e) return erro('Envio não encontrado.', 404);
+      const { data: r } = await admin.from('comunidade_respostas').select('texto').eq('envio_id', id).order('criado_em', { ascending: false }).limit(1).maybeSingle();
+      if (!r) return erro('Ainda não há resposta para avisar.', 409);
+      const { data: u } = await admin.auth.admin.getUserById(e.aluno_id);
+      const enviado = await enviarEmail({ para: [u?.user?.email ?? ''], ...emailResposta({ texto: r.texto, link: `${appUrl}/student/comunidade` }) });
+      return json({ ok: true, enviado });
     }
 
     if (acao === 'apagar') {
