@@ -80,9 +80,11 @@ function Publicacao({ post }) {
                 <p className="mt-1 text-xs text-text-muted">{data(post.criado_em)}</p>
             </header>
             {post.video_provider === 'drive' && post.video_ref && (
-                <div className="aspect-video overflow-hidden rounded-2xl bg-black">
-                    {/* Sem `allow-popups`: o botão "abrir em outra janela" do Drive não leva o aluno para fora do app, e os controles do player ficam livres. */}
-                    <iframe title={post.titulo} src={`https://drive.google.com/file/d/${post.video_ref}/preview`} sandbox="allow-scripts allow-same-origin" allow="autoplay; fullscreen" allowFullScreen className="h-full w-full border-0" />
+                <div className="relative aspect-video overflow-hidden rounded-2xl bg-black">
+                    <iframe title={post.titulo} src={`https://drive.google.com/file/d/${post.video_ref}/preview`} allow="autoplay; fullscreen" allowFullScreen className="h-full w-full border-0" />
+                    {/* Só em telas de toque: no celular o botão "abrir em outra janela" do Drive leva o aluno para fora do app.
+                        Uma coluna transparente na borda direita, na altura toda, intercepta o toque; o play/pause no centro continua livre. */}
+                    <div aria-hidden="true" className="absolute inset-y-0 right-0 hidden w-14 [@media(pointer:coarse)]:block" />
                 </div>
             )}
             {post.texto && <p className="max-w-[65ch] whitespace-pre-line text-sm leading-relaxed text-text-muted">{post.texto}</p>}
