@@ -201,6 +201,10 @@ export default function Player() {
             .filter((m) => m.aulas.length > 0);
     }, [modules, query]);
 
+    // No celular o player do Drive não responde ao play dentro da página rolável; ampliado sobre a janela ele funciona.
+    // Vale para toda aula com vídeo do Drive, de qualquer curso (inclusive os futuros).
+    const drivePhone = media.kind === 'iframe' && media.provider === 'drive' && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+
     // ── Estados ──
     // Tela cheia: tenta a do navegador; se for bloqueada (navegadores embutidos, iframes restritos), amplia o player sobre a janela.
     const toggleFullscreen = useCallback(async () => {
@@ -296,9 +300,17 @@ export default function Player() {
                                     onEnded={onEnded}
                                 />
                             )}
-                            {media.kind === 'iframe' && (
+                            {media.kind === 'iframe' && drivePhone && !fill && (
+                                <button type="button" onClick={() => setFill(true)} aria-label={`Assistir ${lesson.titulo}`} className="flex h-full w-full items-center justify-center active:scale-[0.99]">
+                                    <span className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-black shadow-lg"><Play className="ml-1 h-7 w-7 fill-current" /></span>
+                                    <span className="absolute bottom-3 left-4 text-sm font-semibold text-white/90">Toque para assistir</span>
+                                </button>
+                            )}
+                            {media.kind === 'iframe' && !(drivePhone && !fill) && (
                                 <iframe key={lesson.id} ref={iframeRef} src={media.src} title={lesson.titulo} className="h-full w-full border-none" allow="autoplay; fullscreen" allowFullScreen />
                             )}
+                            {/* No celular, o botão "abrir em outra janela" do Drive levaria o aluno para fora do app: coluna transparente na borda direita */}
+                            {media.kind === 'iframe' && drivePhone && fill && <div aria-hidden="true" className="absolute inset-y-0 right-0 w-14" />}
                             {media.kind === 'none' && (
                                 <div className="flex h-full items-center justify-center">
                                     <div className="text-center space-y-4 p-6">
