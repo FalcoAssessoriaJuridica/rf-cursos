@@ -321,7 +321,7 @@ function TermoConsentimento({ termo, onAceito }) {
             </div>
             {aviso && <p role="status" className="rounded-2xl border border-primary/40 p-4 text-sm font-semibold">{aviso}</p>}
 
-            <div tabIndex={0} role="region" aria-label={doc.titulo} className="max-h-72 space-y-5 overflow-y-auto rounded-2xl border border-white/10 p-4 text-sm leading-relaxed text-text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+            <div tabIndex={0} role="region" aria-label={doc.titulo} className="space-y-5 rounded-2xl sm:max-h-72 sm:overflow-y-auto border border-white/10 p-4 text-sm leading-relaxed text-text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                 {doc.secoes.map((sec) => (
                     <section key={sec.titulo} className="space-y-2">
                         <h3 className="font-bold text-text">{sec.titulo}</h3>
@@ -360,6 +360,10 @@ function TermoConsentimento({ termo, onAceito }) {
             <button type="submit" disabled={!completo || busy} className="btn-primary flex h-12 w-full items-center justify-center gap-2 disabled:opacity-40 sm:w-auto sm:px-8">
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} Aceitar e continuar
             </button>
+            {!completo && !busy && (() => {
+                const falta = [maior === null && 'diga se você tem 18 anos ou mais', maior === false && !(resp.nome.trim() && resp.parentesco.trim() && resp.contato.trim()) && 'preencha os dados do responsável', !concordo && 'marque a caixa de concordância'].filter(Boolean);
+                return falta.length > 0 && <p className="text-xs text-text-muted">Para continuar: {falta.join('; ')}.</p>;
+            })()}
         </form>
     );
 }
@@ -591,10 +595,12 @@ export default function Comunidade() {
             {estado === 'fora' && <EntrarComCodigo onEntrou={carregar} />}
             {estado === 'dentro' && (
                 <>
-                    <div role="tablist" aria-label="Seções" className="flex flex-wrap gap-2 border-b border-white/10 pb-3">
-                        {[['aulas', 'Aulas'], ['videos', 'Vídeos da comunidade'], ['envios', 'Meus envios']].map(([id, rotulo]) => (
-                            <button key={id} role="tab" type="button" aria-selected={aba === id} onClick={() => setAba(id)}
-                                className={cn('h-11 rounded-lg px-4 text-sm font-semibold transition-colors', aba === id ? 'bg-primary text-black' : 'text-text-muted hover:text-text')}>{rotulo}</button>
+                    <div role="tablist" aria-label="Seções" className="grid grid-cols-3 gap-1 border-b border-white/10 pb-3 sm:flex sm:gap-2">
+                        {[['aulas', 'Aulas', 'Aulas'], ['videos', 'Vídeos da comunidade', 'Comunidade'], ['envios', 'Meus envios', 'Meus envios']].map(([id, rotulo, curto]) => (
+                            <button key={id} role="tab" type="button" aria-selected={aba === id} aria-label={rotulo} onClick={() => setAba(id)}
+                                className={cn('h-11 whitespace-nowrap rounded-lg px-2 text-sm font-semibold transition-colors sm:px-4', aba === id ? 'bg-primary text-black' : 'text-text-muted hover:text-text')}>
+                                <span className="sm:hidden">{curto}</span><span className="hidden sm:inline">{rotulo}</span>
+                            </button>
                         ))}
                     </div>
                     <div role="tabpanel">
